@@ -196,6 +196,7 @@ function startPlayerTurn() {
   applyRelicStartTurn();
 }
 
+
 function endTurn() {
   state.player.hand.forEach((c) => state.player.discard.push(c));
   state.player.hand = [];
@@ -400,6 +401,7 @@ function renderState() {
           <p>エナジー: ${state.player.energy} / ブロック: <span class="block">${state.player.block}</span> / 筋力: ${state.player.strength}</p>
         </div>
       </div>
+
     `;
     return;
   }
@@ -431,6 +433,7 @@ function renderState() {
   }
   if (state.mode === 'dead') {
     el.state.innerHTML = '<h2>ゲームオーバー</h2><p>もう一度挑戦しましょう。</p>';
+
   }
 }
 
@@ -450,6 +453,7 @@ function renderActions() {
   if (state.mode === 'map') {
     el.actions.innerHTML = '<button id="startFight">戦闘開始</button>';
     document.getElementById('startFight').addEventListener('click', startCombat);
+
     return;
   }
 
@@ -498,6 +502,7 @@ function renderActions() {
     document.getElementById('leaveCamp').addEventListener('click', () => { state.mode = 'postCombat'; render(); });
     el.actions.querySelectorAll('[data-remove]').forEach((btn) => btn.addEventListener('click', () => campRemove(btn.dataset.remove)));
     el.actions.querySelectorAll('[data-up]').forEach((btn) => btn.addEventListener('click', () => campUpgrade(btn.dataset.up)));
+
     return;
   }
 
@@ -517,4 +522,5 @@ function render() {
 }
 
 addLog('ゲーム開始。戦闘を始めましょう。');
+
 render();
