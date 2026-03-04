@@ -42,6 +42,7 @@ const defaultState = () => ({
   shopChoices: [],
   relicChoices: [],
   campChoices: [],
+  postCombatOptions: [],
   player: {
     maxHp: 70,
     hp: 70,
@@ -92,6 +93,15 @@ function relicDamageBonus() {
   return state.player.relics.reduce((sum, r) => sum + (r.onDealDamageBonus || 0), 0);
 }
 
+function calcPlayerDamage(base) {
+  return Math.max(0, base + state.player.strength + relicDamageBonus());
+}
+
+function calcEnemyAttack(base) {
+  if (!state.enemy) return base;
+  return Math.max(0, base + state.enemy.strength);
+}
+
 function playCard(index) {
   const cardId = state.player.hand[index];
   const card = cardDefs[cardId];
@@ -101,8 +111,8 @@ function playCard(index) {
   state.player.hand.splice(index, 1);
   state.player.discard.push(cardId);
 
-  const dmgAmount = (card.dmg || 0) + state.player.strength + relicDamageBonus();
   if (card.dmg) {
+    const dmgAmount = calcPlayerDamage(card.dmg);
     const dealt = damage(state.enemy, dmgAmount);
     addLog(`あなたの${card.name}！ ${state.enemy.name}に${dealt}ダメージ。`);
   }
@@ -136,10 +146,10 @@ function chooseEnemyIntent(enemy) {
 
 function intentText(intent) {
   if (!intent) return '-';
-  if (intent.type === 'attack') return `攻撃 ${intent.value}`;
+  if (intent.type === 'attack') return `攻撃 ${calcEnemyAttack(intent.value)}`;
   if (intent.type === 'block') return `防御 ${intent.block}`;
-  if (intent.type === 'buff') return `強化 攻撃+${intent.value}`;
-  if (intent.type === 'attackBlock') return `攻撃 ${intent.value} + 防御 ${intent.block}`;
+  if (intent.type === 'buff') return `強化 筋力+${intent.value}`;
+  if (intent.type === 'attackBlock') return `攻撃 ${calcEnemyAttack(intent.value)} + 防御 ${intent.block}`;
   return '???';
 }
 
@@ -151,7 +161,7 @@ function applyRelicStartTurn() {
 
 function startCombat() {
   const seed = state.nextEncounter || enemyPool[Math.floor(Math.random() * enemyPool.length)];
-  state.enemy = { ...seed, maxHp: seed.hp, block: 0, vuln: 0, attackBuff: 0, intent: null };
+  state.enemy = { ...seed, maxHp: seed.hp, block: 0, vuln: 0, strength: 0, intent: null };
   state.nextEncounter = null;
   state.mode = 'combat';
   state.turn = 1;
@@ -172,23 +182,21 @@ function doEnemyTurn() {
   if (!intent) return;
 
   if (intent.type === 'attack' || intent.type === 'attackBlock') {
-    const raw = intent.value + (state.enemy.attackBuff || 0) + (state.enemy.vuln > 0 ? 2 : 0);
-    const dealt = damage(state.player, raw);
+    const dealt = damage(state.player, calcEnemyAttack(intent.value));
     addLog(`${state.enemy.name}の攻撃！ あなたは${dealt}ダメージ。`);
   }
   if (intent.type === 'block' || intent.type === 'attackBlock') {
     gainBlock(state.enemy, intent.block);
   }
   if (intent.type === 'buff') {
-    state.enemy.attackBuff += intent.value;
-    addLog(`${state.enemy.name}は攻撃力を上げた。`);
+    state.enemy.strength += intent.value;
+    addLog(`${state.enemy.name}の筋力が${intent.value}上がった。`);
   }
 }
 
 function startPlayerTurn() {
   state.turn += 1;
   state.player.block = 0;
-  state.enemy.block = 0;
   state.enemy.vuln = Math.max(0, state.enemy.vuln - 1);
   state.player.energy = 3;
   draw(5);
@@ -196,11 +204,9 @@ function startPlayerTurn() {
   applyRelicStartTurn();
 }
 
-
 function endTurn() {
   state.player.hand.forEach((c) => state.player.discard.push(c));
   state.player.hand = [];
-  state.player.block = 0;
 
   doEnemyTurn();
   if (state.player.hp <= 0) {
@@ -210,6 +216,7 @@ function endTurn() {
     return;
   }
 
+  state.enemy.block = 0;
   startPlayerTurn();
   render();
 }
@@ -346,7 +353,9 @@ function loadGame() {
     return;
   }
   const loaded = JSON.parse(raw);
-  loaded.player.relics = (loaded.player.relics || []).map((r) => relicPool.find((x) => x.id === r.id)).filter(Boolean);
+  loaded.player.relics = (loaded.player.relics || [])
+    .map((r) => relicPool.find((x) => x.id === r.id))
+    .filter(Boolean);
   state = loaded;
   addLog('ロードしました。');
   render();
@@ -364,14 +373,17 @@ function hpBar(current, max) {
 }
 
 function renderHUD() {
-  const relicNames = state.player.relics.map((r) => r.name).join(' / ') || 'なし';
   el.hud.innerHTML = `
     <div class="grid">
       <div class="stat">階層: ${state.floor} / ${state.maxFloor}</div>
       <div class="stat">所持金: ${state.gold}G</div>
       <div class="stat">デッキ: ${state.player.deck.length}枚</div>
-      <div class="stat">レリック: ${relicNames}</div>
+      <div class="stat">レリック数: ${state.player.relics.length}</div>
     </div>
+    <details class="relic-box" style="margin-top:0.5rem;">
+      <summary>所持レリック一覧</summary>
+      ${state.player.relics.length ? state.player.relics.map((r) => `<div class="small">・${r.name}: ${r.text}</div>`).join('') : '<div class="small">なし</div>'}
+    </details>
     <div class="row" style="margin-top:0.5rem;">
       <button id="saveBtn">セーブ</button>
       <button id="loadBtn">ロード</button>
@@ -387,21 +399,20 @@ function renderState() {
   if (state.mode === 'combat') {
     el.state.innerHTML = `
       <div class="status-grid">
-        <div class="panel enemy-panel">
-          <h3>敵: ${state.enemy.name}</h3>
-          <p>HP ${state.enemy.hp} / ${state.enemy.maxHp}</p>
-          ${hpBar(state.enemy.hp, state.enemy.maxHp)}
-          <p>ブロック: <span class="block">${state.enemy.block}</span> / 脆弱: ${state.enemy.vuln}</p>
-          <p>次の行動予告: <strong>${intentText(state.enemy.intent)}</strong></p>
-        </div>
         <div class="panel player-panel">
           <h3>あなた</h3>
           <p>HP ${state.player.hp} / ${state.player.maxHp}</p>
           ${hpBar(state.player.hp, state.player.maxHp)}
           <p>エナジー: ${state.player.energy} / ブロック: <span class="block">${state.player.block}</span> / 筋力: ${state.player.strength}</p>
         </div>
+        <div class="panel enemy-panel">
+          <h3>敵: ${state.enemy.name}</h3>
+          <p>HP ${state.enemy.hp} / ${state.enemy.maxHp}</p>
+          ${hpBar(state.enemy.hp, state.enemy.maxHp)}
+          <p>ブロック: <span class="block">${state.enemy.block}</span> / 脆弱: ${state.enemy.vuln} / 筋力: ${state.enemy.strength}</p>
+          <p>次の行動予告: <strong>${intentText(state.enemy.intent)}</strong></p>
+        </div>
       </div>
-
     `;
     return;
   }
@@ -433,7 +444,6 @@ function renderState() {
   }
   if (state.mode === 'dead') {
     el.state.innerHTML = '<h2>ゲームオーバー</h2><p>もう一度挑戦しましょう。</p>';
-
   }
 }
 
@@ -441,8 +451,9 @@ function renderActions() {
   if (state.mode === 'combat') {
     const handButtons = state.player.hand.map((id, i) => {
       const c = cardDefs[id];
-      const disabled = c.cost > state.player.energy ? 'disabled' : '';
-      return `<button class="card-button" ${disabled} data-play="${i}">${c.name} [${c.cost}]<br><span class="small">${c.text}</span></button>`;
+      const disabled = c.cost > state.player.energy;
+      const damagePreview = c.dmg ? ` / 与ダメ:${calcPlayerDamage(c.dmg)}` : '';
+      return `<button class="card-button${disabled ? ' is-disabled' : ''}" ${disabled ? 'disabled' : ''} data-play="${i}">${c.name} [${c.cost}]<br><span class="small">${c.text}${damagePreview}</span></button>`;
     }).join('');
     el.actions.innerHTML = `<div class="row">${handButtons}</div><div class="row" style="margin-top:0.6rem;"><button id="endTurn">ターン終了</button></div>`;
     el.actions.querySelectorAll('[data-play]').forEach((btn) => btn.addEventListener('click', () => playCard(Number(btn.dataset.play))));
@@ -453,7 +464,6 @@ function renderActions() {
   if (state.mode === 'map') {
     el.actions.innerHTML = '<button id="startFight">戦闘開始</button>';
     document.getElementById('startFight').addEventListener('click', startCombat);
-
     return;
   }
 
@@ -492,7 +502,10 @@ function renderActions() {
 
   if (state.mode === 'camp') {
     const removable = state.campChoices.map((id) => `<button data-remove="${id}">削除: ${cardDefs[id].name}</button>`).join('');
-    const upgradable = state.campChoices.filter((id) => cardDefs[id].upgradeTo).map((id) => `<button data-up="${id}">強化: ${cardDefs[id].name} → ${cardDefs[cardDefs[id].upgradeTo].name}</button>`).join('');
+    const upgradable = state.campChoices
+      .filter((id) => cardDefs[id].upgradeTo)
+      .map((id) => `<button data-up="${id}">強化: ${cardDefs[id].name} → ${cardDefs[cardDefs[id].upgradeTo].name}</button>`)
+      .join('');
     el.actions.innerHTML = `
       <div class="row"><button id="campHeal">休憩（14回復）</button><button id="leaveCamp">戻る</button></div>
       <p class="small">カード削除（1枚）</p><div class="row">${removable || '<span class="small">対象なし</span>'}</div>

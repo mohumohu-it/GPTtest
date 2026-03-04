@@ -6,6 +6,7 @@ $danger: #ff7a93;
 $ok: #8fff9f;
 
 * { box-sizing: border-box; }
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -13,6 +14,7 @@ body {
   color: $text;
   background: radial-gradient(circle at top, #1f2b3d, $bg 55%);
 }
+
 .app { max-width: 980px; margin: 0 auto; padding: 1rem; display: grid; gap: 0.8rem; }
 header h1 { margin: 0; color: $accent; }
 header p { margin: 0.25rem 0 0; opacity: 0.9; }
@@ -27,9 +29,10 @@ header p { margin: 0.25rem 0 0; opacity: 0.9; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 0.5rem; }
 .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.6rem; }
 .panel { background: rgba(0,0,0,0.2); border-radius: 0.6rem; padding: 0.6rem; border: 1px solid rgba(255,255,255,0.08); }
-.enemy-panel h3 { color: #ffd2a8; }
 .player-panel h3 { color: #a8dbff; }
+.enemy-panel h3 { color: #ffd2a8; }
 .stat { background: rgba(0,0,0,0.2); border-radius: 0.5rem; padding: 0.5rem; }
+.relic-box summary { cursor: pointer; color: $accent; }
 
 .actions button, .card-button {
   background: #27354c;
@@ -40,7 +43,16 @@ header p { margin: 0.25rem 0 0; opacity: 0.9; }
   cursor: pointer;
   text-align: left;
 }
-.actions button:hover, .card-button:hover { border-color: $accent; }
+
+.actions button:hover,
+.card-button:hover { border-color: $accent; }
+
+.card-button.is-disabled,
+.card-button:disabled {
+  opacity: 0.35;
+  filter: grayscale(0.4);
+  cursor: not-allowed;
+}
 
 .row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .small { font-size: 0.85rem; opacity: 0.9; }
@@ -63,4 +75,3 @@ header p { margin: 0.25rem 0 0; opacity: 0.9; }
 
 .log { max-height: 260px; overflow: auto; line-height: 1.45; }
 .log-entry { padding: 0.2rem 0; border-bottom: 1px dashed rgba(255,255,255,0.1); }
-
