@@ -126,7 +126,6 @@ function playCard(index) {
     victory();
     return;
   }
-
   render();
 }
 
@@ -166,13 +165,11 @@ function startCombat() {
   state.nextEncounter = null;
   state.mode = 'combat';
   state.turn = 1;
-
   state.player.block = 0;
   state.player.energy = 3;
   state.player.draw = shuffle(state.player.deck);
   state.player.hand = [];
   state.player.discard = [];
-
   draw(5);
   chooseEnemyIntent(state.enemy);
   applyRelicStartTurn();
@@ -518,6 +515,7 @@ function renderActions() {
     document.getElementById('leaveCamp').addEventListener('click', () => { state.mode = 'postCombat'; render(); });
     el.actions.querySelectorAll('[data-remove]').forEach((btn) => btn.addEventListener('click', () => campRemove(btn.dataset.remove)));
     el.actions.querySelectorAll('[data-up]').forEach((btn) => btn.addEventListener('click', () => campUpgrade(btn.dataset.up)));
+
     return;
   }
 
@@ -537,4 +535,5 @@ function render() {
 }
 
 addLog('ゲーム開始。戦闘を始めましょう。');
+
 render();
