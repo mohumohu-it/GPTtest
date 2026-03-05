@@ -134,6 +134,17 @@ function cardText(id) {
   return parts.join(' / ');
 }
 
+function draw(n = 1) {
+  for (let i = 0; i < n; i += 1) {
+    if (state.player.draw.length === 0) {
+      state.player.draw = shuffle(state.player.discard);
+      state.player.discard = [];
+    }
+    const c = state.player.draw.shift();
+    if (c) state.player.hand.push(c);
+  }
+}
+
 function chooseEnemyIntent(enemy) { enemy.intent = { ...enemy.intents[Math.floor(Math.random() * enemy.intents.length)] }; }
 function intentText(enemy) {
   const i = enemy.intent;
