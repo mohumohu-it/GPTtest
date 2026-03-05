@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'mini_spire_save_v5';
+ const STORAGE_KEY = 'mini_spire_save_v5';
 
 const cardDefs = {
   strike: { name: 'ストライク', cost: 1, rarity: 'common', dmg: 6, upgradeTo: 'strike_p' },
