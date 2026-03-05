@@ -31,7 +31,9 @@ header p { margin: 0.25rem 0 0; opacity: 0.9; }
 .panel { background: rgba(0,0,0,0.2); border-radius: 0.6rem; padding: 0.6rem; border: 1px solid rgba(255,255,255,0.08); }
 .player-panel h3 { color: #a8dbff; }
 .enemy-panel h3 { color: #ffd2a8; }
-.stat { background: rgba(0,0,0,0.2); border-radius: 0.5rem; padding: 0.5rem; }
+.stat { background: rgba(0,0,0,0.2); border-radius: 0.5rem; padding: 0.5rem; border: none; color: $text; text-align: left; }
+.deck-btn { cursor: pointer; }
+.deck-view { margin-top: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.5rem; padding: 0.5rem; }
 .relic-box summary { cursor: pointer; color: $accent; }
 
 .actions button, .card-button {
@@ -47,10 +49,12 @@ header p { margin: 0.25rem 0 0; opacity: 0.9; }
 .actions button:hover,
 .card-button:hover { border-color: $accent; }
 
+.is-disabled,
 .card-button.is-disabled,
+.actions button:disabled,
 .card-button:disabled {
   opacity: 0.35;
-  filter: grayscale(0.4);
+  filter: grayscale(0.45);
   cursor: not-allowed;
 }
 

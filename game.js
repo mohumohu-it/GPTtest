@@ -5,8 +5,8 @@ const cardDefs = {
   strike_p: { name: 'ストライク+', cost: 1, text: '敵に9ダメージ', type: 'attack', dmg: 9 },
   defend: { name: 'ディフェンド', cost: 1, text: '自分に5ブロック', type: 'skill', block: 5, upgradeTo: 'defend_p' },
   defend_p: { name: 'ディフェンド+', cost: 1, text: '自分に8ブロック', type: 'skill', block: 8 },
-  bash: { name: 'バッシュ', cost: 2, text: '8ダメージ + 脆弱2', type: 'attack', dmg: 8, vuln: 2, upgradeTo: 'bash_p' },
-  bash_p: { name: 'バッシュ+', cost: 2, text: '10ダメージ + 脆弱3', type: 'attack', dmg: 10, vuln: 3 },
+  bash: { name: 'バッシュ', cost: 2, text: '8ダメージ + 弱体1', type: 'attack', dmg: 8, weak: 1, upgradeTo: 'bash_p' },
+  bash_p: { name: 'バッシュ+', cost: 2, text: '10ダメージ + 弱体2', type: 'attack', dmg: 10, weak: 2 },
   quick: { name: 'クイックジャブ', cost: 0, text: '敵に4ダメージ', type: 'attack', dmg: 4, upgradeTo: 'quick_p' },
   quick_p: { name: 'クイックジャブ+', cost: 0, text: '敵に6ダメージ', type: 'attack', dmg: 6 },
   ironwall: { name: '鉄壁', cost: 1, text: '自分に8ブロック', type: 'skill', block: 8, upgradeTo: 'ironwall_p' },
@@ -19,7 +19,12 @@ const enemyPool = [
   { name: 'シラミ', hp: 30, intents: [{ type: 'attack', value: 6 }, { type: 'attack', value: 8 }] },
   { name: 'カルト教団員', hp: 38, intents: [{ type: 'attack', value: 9 }, { type: 'buff', value: 2 }] },
   { name: 'ジョーウォーム', hp: 45, intents: [{ type: 'attack', value: 10 }, { type: 'attackBlock', value: 8, block: 6 }] },
-  { name: '番兵', hp: 48, intents: [{ type: 'attack', value: 11 }, { type: 'block', block: 10 }] },
+  { name: '番兵', hp: 48, intents: [{ type: 'attack', value: 11 }, { type: 'block', block: 10 }, { type: 'weaken', weak: 1 }] },
+];
+
+const elitePool = [
+  { name: 'エリート・ラガヴーリン', hp: 72, isElite: true, intents: [{ type: 'attack', value: 15 }, { type: 'attackBlock', value: 12, block: 12 }, { type: 'buff', value: 3 }] },
+  { name: 'エリート・グレムリンノブ', hp: 78, isElite: true, intents: [{ type: 'attack', value: 16 }, { type: 'weakenAttack', weak: 2, value: 12 }, { type: 'buff', value: 3 }] },
 ];
 
 const relicPool = [
@@ -30,6 +35,12 @@ const relicPool = [
 ];
 
 const rewardCards = ['quick', 'ironwall', 'rage', 'bash', 'strike', 'defend'];
+const mapMessages = [
+  (g) => (g.player.hp < g.player.maxHp * 0.4 ? '傷が深い…慎重に進もう。' : '塔の奥から敵意を感じる。'),
+  (g) => (g.gold >= 150 ? '財布は重い。商人に出会えれば有利だ。' : '物資は乏しい。戦って稼ぐしかない。'),
+  (g) => (g.floor >= g.maxFloor - 2 ? '終盤だ。あと少しで踏破できる。' : `第${g.floor}階層、まだまだ先は長い。`),
+  () => '足音を潜め、次の戦いへ向かう。',
+];
 
 const defaultState = () => ({
   floor: 1,
@@ -43,12 +54,18 @@ const defaultState = () => ({
   relicChoices: [],
   campChoices: [],
   postCombatOptions: [],
+  postCombatLocked: false,
+  mapText: '塔の入口に立っている。',
+  eliteOffer: null,
+  showDeck: false,
   player: {
     maxHp: 70,
     hp: 70,
     block: 0,
     energy: 3,
     strength: 0,
+    weak: 0,
+    vuln: 0,
     deck: ['strike', 'strike', 'strike', 'strike', 'strike', 'defend', 'defend', 'defend', 'defend', 'bash'],
     draw: [],
     hand: [],
@@ -77,14 +94,26 @@ function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
+function applyVulnOnBlock(unit, value) {
+  if (unit.vuln > 0) return Math.max(0, Math.floor(value * 0.75));
+  return value;
+}
+
 function gainBlock(unit, value) {
-  unit.block += value;
-  addLog(`${unit === state.player ? 'あなた' : '敵'}は${value}ブロックを得た。`);
+  const actual = applyVulnOnBlock(unit, value);
+  unit.block += actual;
+  const unitName = unit === state.player ? 'あなた' : '敵';
+  if (actual !== value) {
+    addLog(`${unitName}は脆弱の影響でブロックが減少し、${actual}ブロックを得た。`);
+  } else {
+    addLog(`${unitName}は${actual}ブロックを得た。`);
+  }
 }
 
 function damage(unit, amount) {
-  const reduced = Math.max(0, amount - unit.block);
-  unit.block = Math.max(0, unit.block - amount);
+  const amplified = unit.weak > 0 ? Math.ceil(amount * 1.5) : amount;
+  const reduced = Math.max(0, amplified - unit.block);
+  unit.block = Math.max(0, unit.block - amplified);
   unit.hp -= reduced;
   return reduced;
 }
@@ -102,6 +131,15 @@ function calcEnemyAttack(base) {
   return Math.max(0, base + state.enemy.strength);
 }
 
+function cardText(cardId) {
+  const card = cardDefs[cardId];
+  if (!card) return '';
+  if (card.dmg && card.block) return `敵に${calcPlayerDamage(card.dmg)}ダメージ + 自分に${card.block}ブロック`;
+  if (card.dmg) return `敵に${calcPlayerDamage(card.dmg)}ダメージ${card.weak ? ` + 弱体${card.weak}` : ''}`;
+  if (card.block) return `自分に${card.block}ブロック`;
+  return card.text;
+}
+
 function playCard(index) {
   const cardId = state.player.hand[index];
   const card = cardDefs[cardId];
@@ -112,20 +150,20 @@ function playCard(index) {
   state.player.discard.push(cardId);
 
   if (card.dmg) {
-    const dmgAmount = calcPlayerDamage(card.dmg);
-    const dealt = damage(state.enemy, dmgAmount);
+    const dealt = damage(state.enemy, calcPlayerDamage(card.dmg));
     addLog(`あなたの${card.name}！ ${state.enemy.name}に${dealt}ダメージ。`);
   }
   if (card.block) gainBlock(state.player, card.block);
-  if (card.vuln) {
-    state.enemy.vuln += card.vuln;
-    addLog(`${state.enemy.name}に脆弱${card.vuln}を付与。`);
+  if (card.weak) {
+    state.enemy.weak += card.weak;
+    addLog(`${state.enemy.name}に弱体${card.weak}を付与。`);
   }
 
   if (state.enemy.hp <= 0) {
     victory();
     return;
   }
+
   render();
 }
 
@@ -150,6 +188,8 @@ function intentText(intent) {
   if (intent.type === 'block') return `防御 ${intent.block}`;
   if (intent.type === 'buff') return `強化 筋力+${intent.value}`;
   if (intent.type === 'attackBlock') return `攻撃 ${calcEnemyAttack(intent.value)} + 防御 ${intent.block}`;
+  if (intent.type === 'weaken') return `弱体付与 ${intent.weak}`;
+  if (intent.type === 'weakenAttack') return `攻撃 ${calcEnemyAttack(intent.value)} + 弱体${intent.weak}`;
   return '???';
 }
 
@@ -159,21 +199,23 @@ function applyRelicStartTurn() {
   });
 }
 
-function startCombat() {
-  const seed = state.nextEncounter || enemyPool[Math.floor(Math.random() * enemyPool.length)];
-  state.enemy = { ...seed, maxHp: seed.hp, block: 0, vuln: 0, strength: 0, intent: null };
+function startCombat(encounter = null) {
+  const seed = encounter || state.nextEncounter || enemyPool[Math.floor(Math.random() * enemyPool.length)];
+  state.enemy = { ...seed, maxHp: seed.hp, block: 0, weak: 0, vuln: 0, strength: 0, intent: null };
   state.nextEncounter = null;
   state.mode = 'combat';
   state.turn = 1;
+
   state.player.block = 0;
   state.player.energy = 3;
   state.player.draw = shuffle(state.player.deck);
   state.player.hand = [];
   state.player.discard = [];
+
   draw(5);
   chooseEnemyIntent(state.enemy);
   applyRelicStartTurn();
-  addLog(`--- 戦闘開始: ${state.enemy.name} ---`);
+  addLog(`--- 戦闘開始: ${state.enemy.name}${state.enemy.isElite ? '（エリート）' : ''} ---`);
   render();
 }
 
@@ -181,7 +223,9 @@ function doEnemyTurn() {
   const intent = state.enemy.intent;
   if (!intent) return;
 
-  if (intent.type === 'attack' || intent.type === 'attackBlock') {
+  state.enemy.block = 0;
+
+  if (intent.type === 'attack' || intent.type === 'attackBlock' || intent.type === 'weakenAttack') {
     const dealt = damage(state.player, calcEnemyAttack(intent.value));
     addLog(`${state.enemy.name}の攻撃！ あなたは${dealt}ダメージ。`);
   }
@@ -192,12 +236,20 @@ function doEnemyTurn() {
     state.enemy.strength += intent.value;
     addLog(`${state.enemy.name}の筋力が${intent.value}上がった。`);
   }
+  if (intent.type === 'weaken' || intent.type === 'weakenAttack') {
+    state.player.weak += intent.weak;
+    addLog(`あなたは弱体${intent.weak}を受けた。`);
+  }
+}
+
+function tickDebuffs(unit) {
+  unit.weak = Math.max(0, unit.weak - 1);
+  unit.vuln = Math.max(0, unit.vuln - 1);
 }
 
 function startPlayerTurn() {
   state.turn += 1;
   state.player.block = 0;
-  state.enemy.vuln = Math.max(0, state.enemy.vuln - 1);
   state.player.energy = 3;
   draw(5);
   chooseEnemyIntent(state.enemy);
@@ -208,7 +260,10 @@ function endTurn() {
   state.player.hand.forEach((c) => state.player.discard.push(c));
   state.player.hand = [];
 
+  tickDebuffs(state.player);
   doEnemyTurn();
+  tickDebuffs(state.enemy);
+
   if (state.player.hp <= 0) {
     state.mode = 'dead';
     addLog('力尽きた…。');
@@ -216,7 +271,6 @@ function endTurn() {
     return;
   }
 
-  state.enemy.block = 0;
   startPlayerTurn();
   render();
 }
@@ -236,6 +290,7 @@ function victory() {
   state.rewardChoices = shuffle(rewardCards).slice(0, 3);
   state.relicChoices = shuffle(relicPool).slice(0, 1);
   state.postCombatOptions = rollPostCombatEvents();
+  state.postCombatLocked = false;
   addLog(`${state.enemy.name}を倒した！ ${gainGold}ゴールド獲得。`);
   render();
 }
@@ -265,6 +320,11 @@ function chooseRelic(relicId) {
   render();
 }
 
+function lockPostCombat() {
+  state.postCombatLocked = true;
+  state.postCombatOptions = ['continue'];
+}
+
 function enterShop() {
   state.mode = 'shop';
   state.shopChoices = shuffle(rewardCards).slice(0, 5).map((id) => {
@@ -288,9 +348,21 @@ function buyCard(id, price) {
   render();
 }
 
+function leaveShop() {
+  lockPostCombat();
+  state.mode = 'postCombat';
+  render();
+}
+
 function enterCamp() {
   state.mode = 'camp';
   state.campChoices = [...new Set(state.player.deck)].slice(0, 8);
+  render();
+}
+
+function resolveCamp() {
+  lockPostCombat();
+  state.mode = 'postCombat';
   render();
 }
 
@@ -298,8 +370,7 @@ function campHeal() {
   const heal = 14;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
   addLog(`休憩してHPを${heal}回復。`);
-  state.mode = 'postCombat';
-  render();
+  resolveCamp();
 }
 
 function campRemove(cardId) {
@@ -308,8 +379,7 @@ function campRemove(cardId) {
     state.player.deck.splice(idx, 1);
     addLog(`${cardDefs[cardId].name}をデッキから削除。`);
   }
-  state.mode = 'postCombat';
-  render();
+  resolveCamp();
 }
 
 function campUpgrade(cardId) {
@@ -323,8 +393,17 @@ function campUpgrade(cardId) {
     state.player.deck[idx] = up;
     addLog(`${cardDefs[cardId].name}を${cardDefs[up].name}に強化。`);
   }
-  state.mode = 'postCombat';
-  render();
+  resolveCamp();
+}
+
+function randomMapText() {
+  const pick = mapMessages[Math.floor(Math.random() * mapMessages.length)];
+  return pick(state);
+}
+
+function prepareMap() {
+  state.mapText = randomMapText();
+  state.eliteOffer = Math.random() < 0.22 ? elitePool[Math.floor(Math.random() * elitePool.length)] : null;
 }
 
 function nextFloor() {
@@ -336,6 +415,8 @@ function nextFloor() {
   }
   state.mode = 'map';
   state.enemy = null;
+  state.postCombatLocked = false;
+  prepareMap();
   render();
 }
 
@@ -353,16 +434,15 @@ function loadGame() {
     return;
   }
   const loaded = JSON.parse(raw);
-  loaded.player.relics = (loaded.player.relics || [])
-    .map((r) => relicPool.find((x) => x.id === r.id))
-    .filter(Boolean);
-  state = loaded;
+  loaded.player.relics = (loaded.player.relics || []).map((r) => relicPool.find((x) => x.id === r.id)).filter(Boolean);
+  state = { ...defaultState(), ...loaded, player: { ...defaultState().player, ...loaded.player } };
   addLog('ロードしました。');
   render();
 }
 
 function restart() {
   state = defaultState();
+  prepareMap();
   addLog('新しい冒険を開始。');
   render();
 }
@@ -372,14 +452,31 @@ function hpBar(current, max) {
   return `<div class="hp-bar"><span style="width:${ratio}%"></span></div>`;
 }
 
+function toggleDeck() {
+  state.showDeck = !state.showDeck;
+  render();
+}
+
+function renderDeckList() {
+  if (!state.showDeck) return '';
+  const counts = {};
+  state.player.deck.forEach((id) => { counts[id] = (counts[id] || 0) + 1; });
+  const lines = Object.entries(counts)
+    .sort((a, b) => cardDefs[a[0]].name.localeCompare(cardDefs[b[0]].name, 'ja'))
+    .map(([id, count]) => `<div class="small">・${cardDefs[id].name} x${count}</div>`)
+    .join('');
+  return `<div class="deck-view">${lines || '<div class="small">デッキなし</div>'}</div>`;
+}
+
 function renderHUD() {
   el.hud.innerHTML = `
     <div class="grid">
       <div class="stat">階層: ${state.floor} / ${state.maxFloor}</div>
       <div class="stat">所持金: ${state.gold}G</div>
-      <div class="stat">デッキ: ${state.player.deck.length}枚</div>
-      <div class="stat">レリック数: ${state.player.relics.length}</div>
+      <button class="stat deck-btn" id="deckBtn">デッキ: ${state.player.deck.length}枚</button>
+      <div class="stat">HP: ${state.player.hp} / ${state.player.maxHp}</div>
     </div>
+    ${renderDeckList()}
     <details class="relic-box" style="margin-top:0.5rem;">
       <summary>所持レリック一覧</summary>
       ${state.player.relics.length ? state.player.relics.map((r) => `<div class="small">・${r.name}: ${r.text}</div>`).join('') : '<div class="small">なし</div>'}
@@ -390,6 +487,7 @@ function renderHUD() {
       <button id="restartBtn">ニューゲーム</button>
     </div>
   `;
+  document.getElementById('deckBtn').addEventListener('click', toggleDeck);
   document.getElementById('saveBtn').addEventListener('click', saveGame);
   document.getElementById('loadBtn').addEventListener('click', loadGame);
   document.getElementById('restartBtn').addEventListener('click', restart);
@@ -404,12 +502,14 @@ function renderState() {
           <p>HP ${state.player.hp} / ${state.player.maxHp}</p>
           ${hpBar(state.player.hp, state.player.maxHp)}
           <p>エナジー: ${state.player.energy} / ブロック: <span class="block">${state.player.block}</span> / 筋力: ${state.player.strength}</p>
+          <p>弱体: ${state.player.weak} / 脆弱: ${state.player.vuln}</p>
         </div>
         <div class="panel enemy-panel">
-          <h3>敵: ${state.enemy.name}</h3>
+          <h3>敵: ${state.enemy.name}${state.enemy.isElite ? '【エリート】' : ''}</h3>
           <p>HP ${state.enemy.hp} / ${state.enemy.maxHp}</p>
           ${hpBar(state.enemy.hp, state.enemy.maxHp)}
-          <p>ブロック: <span class="block">${state.enemy.block}</span> / 脆弱: ${state.enemy.vuln} / 筋力: ${state.enemy.strength}</p>
+          <p>ブロック: <span class="block">${state.enemy.block}</span> / 筋力: ${state.enemy.strength}</p>
+          <p>弱体: ${state.enemy.weak} / 脆弱: ${state.enemy.vuln}</p>
           <p>次の行動予告: <strong>${intentText(state.enemy.intent)}</strong></p>
         </div>
       </div>
@@ -418,30 +518,37 @@ function renderState() {
   }
 
   if (state.mode === 'map') {
-    el.state.innerHTML = '<h2>次の戦闘へ進む</h2><p>戦闘後に休憩・ショップが確率で出現します。</p>';
+    const elite = state.eliteOffer ? `<p class="small">付近で強い気配… ${state.eliteOffer.name} が待ち構えている。</p>` : '';
+    el.state.innerHTML = `<h2>次の階層へ進む</h2><p>${state.mapText}</p>${elite}`;
     return;
   }
+
   if (state.mode === 'reward') {
     const relicPick = state.relicChoices[0];
     el.state.innerHTML = `<h2>戦利品</h2><p>カードを1枚選択。${relicPick ? ` レリック候補: ${relicPick.name}` : ''}</p>`;
     return;
   }
+
   if (state.mode === 'postCombat') {
-    el.state.innerHTML = '<h2>戦闘後イベント</h2><p>出現した施設を任意で利用してから次へ進めます。</p>';
+    el.state.innerHTML = `<h2>戦闘後イベント</h2><p>${state.postCombatLocked ? '準備は整った。次の階層へ進もう。' : '出現した施設を任意で利用してから次へ進めます。'}</p>`;
     return;
   }
+
   if (state.mode === 'shop') {
     el.state.innerHTML = '<h2>ショップ</h2><p>5つの候補から好きなカードを購入できます。</p>';
     return;
   }
+
   if (state.mode === 'camp') {
     el.state.innerHTML = '<h2>焚き火</h2><p>回復 / 削除 / 強化 から1つ選択。</p>';
     return;
   }
+
   if (state.mode === 'win') {
     el.state.innerHTML = '<h2>踏破成功！</h2><p>おめでとう、塔を登り切りました。</p>';
     return;
   }
+
   if (state.mode === 'dead') {
     el.state.innerHTML = '<h2>ゲームオーバー</h2><p>もう一度挑戦しましょう。</p>';
   }
@@ -452,8 +559,7 @@ function renderActions() {
     const handButtons = state.player.hand.map((id, i) => {
       const c = cardDefs[id];
       const disabled = c.cost > state.player.energy;
-      const damagePreview = c.dmg ? ` / 与ダメ:${calcPlayerDamage(c.dmg)}` : '';
-      return `<button class="card-button${disabled ? ' is-disabled' : ''}" ${disabled ? 'disabled' : ''} data-play="${i}">${c.name} [${c.cost}]<br><span class="small">${c.text}${damagePreview}</span></button>`;
+      return `<button class="card-button${disabled ? ' is-disabled' : ''}" ${disabled ? 'disabled' : ''} data-play="${i}">${c.name} [${c.cost}]<br><span class="small">${cardText(id)}</span></button>`;
     }).join('');
     el.actions.innerHTML = `<div class="row">${handButtons}</div><div class="row" style="margin-top:0.6rem;"><button id="endTurn">ターン終了</button></div>`;
     el.actions.querySelectorAll('[data-play]').forEach((btn) => btn.addEventListener('click', () => playCard(Number(btn.dataset.play))));
@@ -462,8 +568,19 @@ function renderActions() {
   }
 
   if (state.mode === 'map') {
+    if (state.eliteOffer) {
+      el.actions.innerHTML = `
+        <div class="row">
+          <button id="startElite">エリート戦に挑む</button>
+          <button id="startNormal">通常戦闘にする</button>
+        </div>
+      `;
+      document.getElementById('startElite').addEventListener('click', () => startCombat(state.eliteOffer));
+      document.getElementById('startNormal').addEventListener('click', () => startCombat());
+      return;
+    }
     el.actions.innerHTML = '<button id="startFight">戦闘開始</button>';
-    document.getElementById('startFight').addEventListener('click', startCombat);
+    document.getElementById('startFight').addEventListener('click', () => startCombat());
     return;
   }
 
@@ -480,23 +597,27 @@ function renderActions() {
 
   if (state.mode === 'postCombat') {
     const opts = state.postCombatOptions || [];
-    const buttons = [
-      opts.includes('camp') ? '<button id="toCamp">焚き火へ</button>' : '',
-      opts.includes('shop') ? '<button id="toShop">ショップへ</button>' : '',
-      '<button id="nextFloor">次の階へ</button>',
-    ].join('');
-    el.actions.innerHTML = `<div class="row">${buttons}</div>`;
-    if (opts.includes('camp')) document.getElementById('toCamp').addEventListener('click', enterCamp);
-    if (opts.includes('shop')) document.getElementById('toShop').addEventListener('click', enterShop);
+    const lockClass = state.postCombatLocked ? 'is-disabled' : '';
+    const campDisabled = state.postCombatLocked || !opts.includes('camp');
+    const shopDisabled = state.postCombatLocked || !opts.includes('shop');
+    el.actions.innerHTML = `
+      <div class="row">
+        <button id="toCamp" class="${campDisabled ? lockClass : ''}" ${campDisabled ? 'disabled' : ''}>焚き火へ</button>
+        <button id="toShop" class="${shopDisabled ? lockClass : ''}" ${shopDisabled ? 'disabled' : ''}>ショップへ</button>
+        <button id="nextFloor">次の階層へ</button>
+      </div>
+    `;
+    if (!campDisabled) document.getElementById('toCamp').addEventListener('click', enterCamp);
+    if (!shopDisabled) document.getElementById('toShop').addEventListener('click', enterShop);
     document.getElementById('nextFloor').addEventListener('click', nextFloor);
     return;
   }
 
   if (state.mode === 'shop') {
     const list = state.shopChoices.map((c) => `<button data-buy="${c.id}" data-price="${c.price}">${cardDefs[c.id].name}<br><span class="small">${cardDefs[c.id].text} / ${c.price}G</span></button>`).join('');
-    el.actions.innerHTML = `<div class="row">${list}</div><div class="row" style="margin-top:0.6rem;"><button id="leaveShop">ショップを出る</button></div>`;
+    el.actions.innerHTML = `<div class="row">${list || '<span class="small">購入候補がありません。</span>'}</div><div class="row" style="margin-top:0.6rem;"><button id="leaveShop">ショップを出る</button></div>`;
     el.actions.querySelectorAll('[data-buy]').forEach((btn) => btn.addEventListener('click', () => buyCard(btn.dataset.buy, Number(btn.dataset.price))));
-    document.getElementById('leaveShop').addEventListener('click', () => { state.mode = 'postCombat'; render(); });
+    document.getElementById('leaveShop').addEventListener('click', leaveShop);
     return;
   }
 
@@ -507,15 +628,13 @@ function renderActions() {
       .map((id) => `<button data-up="${id}">強化: ${cardDefs[id].name} → ${cardDefs[cardDefs[id].upgradeTo].name}</button>`)
       .join('');
     el.actions.innerHTML = `
-      <div class="row"><button id="campHeal">休憩（14回復）</button><button id="leaveCamp">戻る</button></div>
+      <div class="row"><button id="campHeal">休憩（14回復）</button></div>
       <p class="small">カード削除（1枚）</p><div class="row">${removable || '<span class="small">対象なし</span>'}</div>
       <p class="small">カード強化（1枚）</p><div class="row">${upgradable || '<span class="small">対象なし</span>'}</div>
     `;
     document.getElementById('campHeal').addEventListener('click', campHeal);
-    document.getElementById('leaveCamp').addEventListener('click', () => { state.mode = 'postCombat'; render(); });
     el.actions.querySelectorAll('[data-remove]').forEach((btn) => btn.addEventListener('click', () => campRemove(btn.dataset.remove)));
     el.actions.querySelectorAll('[data-up]').forEach((btn) => btn.addEventListener('click', () => campUpgrade(btn.dataset.up)));
-
     return;
   }
 
@@ -534,6 +653,6 @@ function render() {
   renderLog();
 }
 
+prepareMap();
 addLog('ゲーム開始。戦闘を始めましょう。');
-
 render();
