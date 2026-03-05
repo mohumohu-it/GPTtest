@@ -25,8 +25,8 @@ button, .card-button { background: #27354c; color: #e7edf7; border: 1px solid rg
 button:hover, .card-button:hover { border-color: #7dcfff; }
 
 .is-disabled, .card-button.is-disabled, button:disabled, .card-button:disabled { opacity: 0.35; filter: grayscale(0.45); cursor: not-allowed; }
-.rarity-common { border-left: 4px solid #e7edf7; }
-.rarity-uncommon { border-left: 4px solid #4db2ff; }
+.rarity-common { border-left: 4px solid #cfd6e0; }
+.rarity-uncommon { border-left: 4px solid #43b8ff; }
 .rarity-rare { border-left: 4px solid #ffd35a; }
 .rarity-legendary { border-left: 4px solid #ff6f6f; }
 .upgraded { color: #8fff9f; font-weight: 700; }
