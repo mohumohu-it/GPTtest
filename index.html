@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mini Spire - Text Deckbuilder</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <h1>Mini Spire</h1>
+          <p>スレイザスパイア風 テキストローグライクデッキ構築（試作）</p>
+        </div>
+        <div class="top-controls" id="topControls"></div>
+      </header>
+
+      <section class="hud" id="hud"></section>
+      <section class="state" id="state"></section>
+      <section class="actions" id="actions"></section>
+      <section class="log" id="log" aria-live="polite"></section>
+    </main>
+
+    <script src="game.js"></script>
+  </body>
+</html>
