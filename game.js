@@ -1,4 +1,4 @@
-const VERSION = '1.01';
+const VERSION = '1.02';
 const STORAGE_KEY = 'mini_spire_save_v8';
 
 const cardDefs = {
@@ -42,7 +42,7 @@ const cardDefs = {
 const potionDefs = {
   healPotion: { id: 'healPotion', name: '回復ポーション', desc: 'HPを18回復', combatOnly: false, use: () => { const before = state.player.hp; state.player.hp = Math.min(state.player.maxHp, state.player.hp + 18); addLog(`回復ポーション: HP ${before}→${state.player.hp}`); } },
   bombPotion: { id: 'bombPotion', name: '爆発ポーション', desc: '敵全体に15ダメージ', combatOnly: true, use: () => { aliveEnemies().forEach((e) => damage(e, 15)); addLog('爆発ポーション: 敵全体に15ダメージ。'); } },
-  fortPotion: { id: 'fortPotion', name: '鉄壁ポーション', desc: '15ブロックを得る', combatOnly: false, use: () => { gainBlock(state.player, 15); addLog('鉄壁ポーション: 15ブロック。'); } },
+  fortPotion: { id: 'fortPotion', name: '鉄壁ポーション', desc: '戦闘中のみ: 15ブロックを得る', combatOnly: true, use: () => { gainBlock(state.player, 15); addLog('鉄壁ポーション: 15ブロック。'); } },
   furyPotion: { id: 'furyPotion', name: '激怒ポーション', desc: '筋力+2（戦闘中）', combatOnly: true, use: () => { state.player.strengthCombat += 2; addLog('激怒ポーション: 筋力+2。'); } },
   weakenPotion: { id: 'weakenPotion', name: '衰弱ポーション', desc: '対象に弱体2', combatOnly: true, use: () => { const t = currentTarget(); if (t) { t.weak += 2; addLog(`${t.name}に弱体2。`); } } },
   drawPotion: { id: 'drawPotion', name: '閃きポーション', desc: 'カードを2枚引く', combatOnly: true, use: () => { draw(2); addLog('閃きポーション: 2枚ドロー。'); } },
@@ -68,7 +68,7 @@ const relicPool = [
   { id: 'whetstone', name: '砥石', rarity: 'common', text: '攻撃カードのダメージ+1（永続）', onDealDamageBonus: 1 },
   { id: 'horn', name: '角笛', rarity: 'uncommon', text: '各ターン開始時に2ブロック', applyStartTurn: () => gainBlock(state.player, 2) },
   { id: 'heart', name: '赤いハート', rarity: 'rare', text: '最大HP+10、即時10回復', onGain: () => { state.player.maxHp += 10; state.player.hp = Math.min(state.player.maxHp, state.player.hp + 10); } },
-  { id: 'ruby', name: '紅蓮のルビー', rarity: 'rare', text: '与ダメージ+2', onDealDamageBonus: 2 },
+  { id: 'ruby', name: '紅蓮のルビー', rarity: 'rare', text: '与ダメージ+2。戦闘開始時に筋力+2', onDealDamageBonus: 2, onCombatStart: () => { state.player.strengthCombat += 2; addLog('紅蓮のルビー: 戦闘開始時に筋力+2'); } },
   { id: 'mirror', name: '鏡面の欠片', rarity: 'legendary', text: '筋力+1（永続）', onGain: () => { state.player.strengthBase += 1; } },
 ];
 
@@ -88,7 +88,7 @@ const shopCards = Object.keys(cardDefs).filter((k) => !cardDefs[k].upgraded);
 const defaultState = () => ({
   floor: 1, maxFloor: 10, gold: 120, mode: 'map', mapText: mapTexts[0], nextNode: 'combat', eventState: null, turn: 0,
   rewardTaken: false, relicTaken: false, rewardChoices: [], shopChoices: [], shopPotionChoices: [], relicChoices: [], campChoices: [],
-  postCombatLocked: false, eliteOffer: null, showDeck: false, showRelics: false, selectedTarget: 0,
+  postCombatLocked: false, eliteOffer: null, showDeck: false, showRelics: false, selectedTarget: 0, screenHidden: false,
   items: ['healPotion', 'bombPotion'],
   player: {
     maxHp: 70, hp: 70, block: 0, energy: 3,
@@ -96,7 +96,7 @@ const defaultState = () => ({
     deck: ['strike', 'strike', 'strike', 'defend', 'defend', 'bash', 'battleCry', 'sweep', 'flurry', 'quick'],
     draw: [], hand: [], discard: [], relics: [], powers: { blockPerTurn: 0, drawPerTurn: 0, strengthPerTurn: 0 },
   },
-  enemies: [], log: [],
+  enemies: [], usedPowers: [], log: [],
 });
 
 let state = defaultState();
@@ -164,9 +164,11 @@ function startCombat(encounter = null) {
   state.selectedTarget = 0;
   state.mode = 'combat';
   state.turn = 1;
+  state.usedPowers = [];
   Object.assign(state.player, { block: 0, energy: 3, strengthCombat: 0, weak: 0, vuln: 0, drain: 0, draw: shuffle(state.player.deck), hand: [], discard: [] });
   draw(5);
   state.enemies.forEach(chooseEnemyIntent);
+  state.player.relics.forEach((r) => { if (r.onCombatStart) r.onCombatStart(); });
   state.player.relics.forEach((r) => { if (r.applyStartTurn) r.applyStartTurn(); });
   addLog(`戦闘開始: ${state.enemies.map((e) => e.name).join(' / ')}`);
   render();
@@ -181,6 +183,7 @@ function applyPowerOnPlay(c) {
 
 function playCard(index) {
   const id = state.player.hand[index]; const c = cardDefs[id]; if (!c || c.cost > state.player.energy) return;
+  if (c.type === 'P' && state.usedPowers.includes(id)) { addLog(`${c.name}はこの戦闘ですでに使用済み。`); render(); return; }
   const target = currentTarget();
   state.player.energy -= c.cost;
   state.player.hand.splice(index, 1);
@@ -191,7 +194,7 @@ function playCard(index) {
   if (c.block) gainBlock(state.player, c.block);
   if (c.weak && target) { target.weak += c.weak; addLog(`${target.name}に弱体${c.weak}。`); }
   if (c.strengthGain) { state.player.strengthCombat += c.strengthGain; addLog(`筋力が${c.strengthGain}上昇。`); }
-  if (c.type === 'P') { applyPowerOnPlay(c); addLog(`パワー発動: ${c.name}`); }
+  if (c.type === 'P') { applyPowerOnPlay(c); state.usedPowers.push(id); addLog(`パワー発動: ${c.name}`); }
 
   if (aliveEnemies().length === 0) { victory(); return; }
   render();
@@ -252,9 +255,7 @@ function victory() {
 }
 
 function takeReward(id) { if (!state.rewardTaken) { state.player.deck.push(id); state.rewardTaken = true; addLog(`${cardDefs[id].name}を入手。`); } render(); }
-function skipReward() { state.rewardTaken = true; addLog('カード報酬を見送った。'); render(); }
 function chooseRelic(id) { const r = relicPool.find((x) => x.id === id); if (!r) return; state.player.relics.push(r); if (r.onGain) r.onGain(); state.relicTaken = true; state.relicChoices = []; addLog(`${r.name}を獲得。`); render(); }
-function skipRelic() { state.relicTaken = true; state.relicChoices = []; addLog('レリックを見送った。'); render(); }
 
 function useItemAt(index) {
   const key = state.items[index];
@@ -350,8 +351,9 @@ function prepareMap() {
 
 function nextFloor() { state.floor += 1; if (state.floor > state.maxFloor) { state.mode = 'win'; render(); return; } state.mode = 'map'; state.eventState = null; state.enemies = []; state.postCombatLocked = false; prepareMap(); render(); }
 function saveGame() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); addLog('セーブした。'); }
-function loadGame() { const raw = localStorage.getItem(STORAGE_KEY); if (!raw) return; const loaded = JSON.parse(raw); loaded.player.relics = (loaded.player.relics || []).map((r) => relicPool.find((x) => x.id === r.id)).filter(Boolean); state = { ...defaultState(), ...loaded, player: { ...defaultState().player, ...loaded.player } }; addLog('ロードした。'); render(); }
-function restart() { state = defaultState(); prepareMap(); addLog('ニューゲーム開始。'); render(); }
+function loadGame() { const raw = localStorage.getItem(STORAGE_KEY); if (!raw) return; const loaded = JSON.parse(raw); loaded.player.relics = (loaded.player.relics || []).map((r) => relicPool.find((x) => x.id === r.id)).filter(Boolean); state = { ...defaultState(), ...loaded, player: { ...defaultState().player, ...loaded.player } }; document.body.classList.toggle('screen-hidden', !!state.screenHidden); addLog('ロードした。'); render(); }
+function restart() { state = defaultState(); document.body.classList.remove('screen-hidden'); prepareMap(); addLog('ニューゲーム開始。'); render(); }
+function toggleScreenMask() { state.screenHidden = !state.screenHidden; document.body.classList.toggle('screen-hidden', state.screenHidden); renderTopControls(); }
 function toggleDeck() { state.showDeck = !state.showDeck; render(); }
 function toggleRelics() { state.showRelics = !state.showRelics; render(); }
 function setTarget(i) { state.selectedTarget = i; render(); }
@@ -361,7 +363,7 @@ function renderRelicList() { return state.showRelics ? `<div class="deck-view">$
 function statusLine(s, w, v, d) { const b = []; if (s > 0) b.push(`筋力:${s}`); if (w > 0) b.push(`弱体:${w}`); if (v > 0) b.push(`脆弱:${v}`); if (d > 0) b.push(`脱力:${d}`); return b.length ? `<p>${b.join(' / ')}</p>` : ''; }
 function hpBar(cur, max) { return `<div class="hp-bar"><span style="width:${Math.round((cur / max) * 100)}%"></span></div>`; }
 
-function renderTopControls() { const h1 = document.querySelector('header h1'); if (h1) h1.innerHTML = `Mini Spire <span class="version">Ver${VERSION}</span>`; el.topControls.innerHTML = '<button id="saveBtn">セーブ</button><button id="loadBtn">ロード</button><button id="restartBtn">ニューゲーム</button>'; document.getElementById('saveBtn').addEventListener('click', saveGame); document.getElementById('loadBtn').addEventListener('click', loadGame); document.getElementById('restartBtn').addEventListener('click', restart); }
+function renderTopControls() { const h1 = document.querySelector('header h1'); if (h1) h1.innerHTML = `Mini Spire <span class="version">Ver${VERSION}</span>`; el.topControls.innerHTML = `<button id="saveBtn">セーブ</button><button id="screenBtn">${state.screenHidden ? 'スクリーン解除' : 'スクリーン'}</button><button id="loadBtn">ロード</button><button id="restartBtn">ニューゲーム</button>`; document.getElementById('saveBtn').addEventListener('click', saveGame); document.getElementById('screenBtn').addEventListener('click', toggleScreenMask); document.getElementById('loadBtn').addEventListener('click', loadGame); document.getElementById('restartBtn').addEventListener('click', restart); }
 
 function renderHUD() {
   const slots = Array.from({ length: 5 }, (_, i) => state.items[i] || null);
@@ -417,22 +419,19 @@ function renderActions() {
 
   if (state.mode === 'reward') {
     const relic = state.relicChoices[0];
-    const canProceed = state.rewardTaken && (state.relicTaken || !relic);
-    el.actions.innerHTML = `<div class="row">${state.rewardChoices.map((id) => `<button data-reward="${id}" class="${getCardRarityClass(id)} ${state.rewardTaken ? 'is-disabled' : ''}" ${state.rewardTaken ? 'disabled' : ''}>${cardLabel(id)}<br><span class="small">${cardEffectText(id)}</span></button>`).join('')}</div><div class="row" style="margin-top:0.5rem;"><button id="skipReward" ${state.rewardTaken ? 'disabled class="is-disabled"' : ''}>カードをスキップ</button>${relic ? `<button id="takeRelic" data-tip="${relic.text}" class="${getRelicRarityClass(relic)}" ${state.relicTaken ? 'disabled' : ''}>レリック獲得: ${relic.name}</button><button id="skipRelic" ${state.relicTaken ? 'disabled class="is-disabled"' : ''}>レリックを見送る</button>` : ''}</div><div class="row" style="margin-top:0.5rem;"><button id="finishReward" ${canProceed ? '' : 'disabled class="is-disabled"'}>報酬を受け取って進む</button></div>`;
+    const allTaken = state.rewardTaken && (state.relicTaken || !relic);
+    const finishText = allTaken ? '次の階層へ進む' : '報酬をスキップして進む';
+    el.actions.innerHTML = `<div class="row">${state.rewardChoices.map((id) => `<button data-reward="${id}" class="${getCardRarityClass(id)} ${state.rewardTaken ? 'is-disabled' : ''}" ${state.rewardTaken ? 'disabled' : ''}>${cardLabel(id)}<br><span class="small">${cardEffectText(id)}</span></button>`).join('')}</div>${relic ? `<div class="row" style="margin-top:0.5rem;"><button id="takeRelic" data-tip="${relic.text}" class="${getRelicRarityClass(relic)}" ${state.relicTaken ? 'disabled class="is-disabled"' : ''}>レリック獲得: ${relic.name}</button></div>` : ''}<div class="row" style="margin-top:0.5rem;"><button id="finishReward">${finishText}</button></div>`;
     el.actions.querySelectorAll('[data-reward]').forEach((b) => b.addEventListener('click', () => takeReward(b.dataset.reward)));
-    document.getElementById('skipReward').addEventListener('click', skipReward);
-    if (relic) {
-      document.getElementById('takeRelic').addEventListener('click', () => chooseRelic(relic.id));
-      document.getElementById('skipRelic').addEventListener('click', skipRelic);
-    }
-    document.getElementById('finishReward').addEventListener('click', () => { if (canProceed) { state.mode = 'postCombat'; render(); } });
+    if (relic) document.getElementById('takeRelic').addEventListener('click', () => chooseRelic(relic.id));
+    document.getElementById('finishReward').addEventListener('click', () => { state.mode = 'postCombat'; render(); });
     return;
   }
 
   if (state.mode === 'postCombat') { el.actions.innerHTML = `<div class="row"><button id="toCamp" ${state.postCombatLocked ? 'disabled class="is-disabled"' : ''}>焚き火へ</button><button id="toShop" ${state.postCombatLocked ? 'disabled class="is-disabled"' : ''}>ショップへ</button><button id="nextFloor">次の階層へ</button></div>`; if (!state.postCombatLocked) { document.getElementById('toCamp').addEventListener('click', enterCamp); document.getElementById('toShop').addEventListener('click', enterShop); } document.getElementById('nextFloor').addEventListener('click', nextFloor); return; }
 
   if (state.mode === 'shop') {
-    el.actions.innerHTML = `<p class="small">カード購入</p><div class="row">${state.shopChoices.map((c) => `<button data-buy="${c.id}" data-price="${c.price}" class="${getCardRarityClass(c.id)}">${cardLabel(c.id)}<br><span class="small">${cardEffectText(c.id)} / ${c.price}G</span></button>`).join('')}</div><p class="small">ポーション購入</p><div class="row">${state.shopPotionChoices.map((p) => `<button data-buy-pot="${p.id}" data-price="${p.price}" ${state.items.length >= 5 ? 'disabled class="is-disabled"' : ''}>${potionDefs[p.id].name}<br><span class="small">${potionDefs[p.id].desc} / ${p.price}G</span></button>`).join('')}</div><div class="row" style="margin-top:0.6rem;"><button id="leaveShop">ショップを出る</button></div>`;
+    el.actions.innerHTML = `<p class="small">カード購入</p><div class="row">${state.shopChoices.map((c) => `<button data-buy="${c.id}" data-price="${c.price}" class="${getCardRarityClass(c.id)} ${state.gold < c.price ? 'is-disabled' : ''}" ${state.gold < c.price ? 'disabled' : ''}>${cardLabel(c.id)}<br><span class="small">${cardEffectText(c.id)} / ${c.price}G</span></button>`).join('')}</div><p class="small">ポーション購入</p><div class="row">${state.shopPotionChoices.map((p) => `<button data-buy-pot="${p.id}" data-price="${p.price}" ${(state.items.length >= 5 || state.gold < p.price) ? 'disabled class="is-disabled"' : ''}>${potionDefs[p.id].name}<br><span class="small">${potionDefs[p.id].desc} / ${p.price}G</span></button>`).join('')}</div><div class="row" style="margin-top:0.6rem;"><button id="leaveShop">ショップを出る</button></div>`;
     el.actions.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => buyCard(b.dataset.buy, Number(b.dataset.price))));
     el.actions.querySelectorAll('[data-buy-pot]').forEach((b) => b.addEventListener('click', () => buyPotion(b.dataset.buyPot, Number(b.dataset.price))));
     document.getElementById('leaveShop').addEventListener('click', leaveShop);

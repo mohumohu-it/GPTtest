@@ -70,3 +70,20 @@ button:hover, .card-button:hover { border-color: #7dcfff; }
   z-index: 29;
   pointer-events: none;
 }
+
+
+
+body.screen-hidden::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 999;
+}
+body.screen-hidden .top-controls {
+  position: relative;
+  z-index: 1000;
+}
+body.screen-hidden .top-controls button:not(#screenBtn) {
+  visibility: hidden;
+}
