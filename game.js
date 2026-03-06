@@ -1,5 +1,5 @@
-const VERSION = '1.02';
-const STORAGE_KEY = 'mini_spire_save_v8';
+const VERSION = '1.03';
+const STORAGE_KEY = 'mini_spire_save_v9';
 
 const cardDefs = {
   strike: { name: 'ストライク', cost: 1, type: 'A', rarity: 'common', dmg: 6, upgradeTo: 'strike_p' },
@@ -16,6 +16,10 @@ const cardDefs = {
   flurry_p: { name: '連打+', cost: 1, type: 'A', rarity: 'common', dmg: 2, hits: 4, upgraded: true },
   guardAura: { name: '守護のオーラ', cost: 1, type: 'P', rarity: 'common', blockPerTurn: 2, upgradeTo: 'guardAura_p' },
   guardAura_p: { name: '守護のオーラ+', cost: 1, type: 'P', rarity: 'common', blockPerTurn: 3, upgraded: true },
+  insight: { name: 'ひらめき', cost: 1, type: 'S', rarity: 'common', drawCount: 2, upgradeTo: 'insight_p' },
+  insight_p: { name: 'ひらめき+', cost: 1, type: 'S', rarity: 'common', drawCount: 3, upgraded: true },
+  charge: { name: 'チャージ', cost: 0, type: 'S', rarity: 'common', gainEnergy: 1, exhaust: true, upgradeTo: 'charge_p' },
+  charge_p: { name: 'チャージ+', cost: 0, type: 'S', rarity: 'common', gainEnergy: 2, exhaust: true, upgraded: true },
 
   quick: { name: 'クイックジャブ', cost: 0, type: 'A', rarity: 'uncommon', dmg: 4, upgradeTo: 'quick_p' },
   quick_p: { name: 'クイックジャブ+', cost: 0, type: 'A', rarity: 'uncommon', dmg: 6, upgraded: true },
@@ -25,6 +29,12 @@ const cardDefs = {
   rage_p: { name: '激昂+', cost: 1, type: 'A', rarity: 'uncommon', dmg: 7, block: 5, upgraded: true },
   keenMind: { name: '明鏡止水', cost: 1, type: 'P', rarity: 'uncommon', drawPerTurn: 1, upgradeTo: 'keenMind_p' },
   keenMind_p: { name: '明鏡止水+', cost: 1, type: 'P', rarity: 'uncommon', drawPerTurn: 2, upgraded: true },
+  tacticalShift: { name: '戦術転換', cost: 1, type: 'S', rarity: 'uncommon', block: 5, drawCount: 2, upgradeTo: 'tacticalShift_p' },
+  tacticalShift_p: { name: '戦術転換+', cost: 1, type: 'S', rarity: 'uncommon', block: 7, drawCount: 3, upgraded: true },
+  ricochet: { name: '跳弾乱打', cost: 1, type: 'A', rarity: 'uncommon', randomDmg: 3, randomHits: 4, upgradeTo: 'ricochet_p' },
+  ricochet_p: { name: '跳弾乱打+', cost: 1, type: 'A', rarity: 'uncommon', randomDmg: 4, randomHits: 5, upgraded: true },
+  firstAid: { name: '応急手当', cost: 1, type: 'S', rarity: 'uncommon', heal: 8, exhaust: true, upgradeTo: 'firstAid_p' },
+  firstAid_p: { name: '応急手当+', cost: 1, type: 'S', rarity: 'uncommon', heal: 12, exhaust: true, upgraded: true },
 
   uppercut: { name: 'アッパーカット', cost: 2, type: 'A', rarity: 'rare', dmg: 11, weak: 2, upgradeTo: 'uppercut_p' },
   uppercut_p: { name: 'アッパーカット+', cost: 2, type: 'A', rarity: 'rare', dmg: 14, weak: 2, upgraded: true },
@@ -32,20 +42,30 @@ const cardDefs = {
   execute_p: { name: '処刑+', cost: 2, type: 'A', rarity: 'rare', dmg: 21, upgraded: true },
   bloodPact: { name: '血盟', cost: 1, type: 'P', rarity: 'rare', strengthGain: 2, weakSelf: 1, upgradeTo: 'bloodPact_p' },
   bloodPact_p: { name: '血盟+', cost: 1, type: 'P', rarity: 'rare', strengthGain: 3, upgraded: true },
+  deepFocus: { name: '深層思考', cost: 1, type: 'S', rarity: 'rare', drawCount: 4, gainEnergy: 1, upgradeTo: 'deepFocus_p' },
+  deepFocus_p: { name: '深層思考+', cost: 1, type: 'S', rarity: 'rare', drawCount: 5, gainEnergy: 1, upgraded: true },
+  overdrive: { name: 'オーバードライブ', cost: 1, type: 'S', rarity: 'rare', gainEnergy: 2, weakSelf: 1, upgradeTo: 'overdrive_p' },
+  overdrive_p: { name: 'オーバードライブ+', cost: 1, type: 'S', rarity: 'rare', gainEnergy: 3, weakSelf: 1, upgraded: true },
+  phoenixSip: { name: '不死鳥の雫', cost: 2, type: 'S', rarity: 'rare', heal: 16, gainEnergy: 1, exhaust: true, upgradeTo: 'phoenixSip_p' },
+  phoenixSip_p: { name: '不死鳥の雫+', cost: 2, type: 'S', rarity: 'rare', heal: 22, gainEnergy: 1, exhaust: true, upgraded: true },
 
   meteor: { name: 'メテオブレイク', cost: 2, type: 'A', rarity: 'legendary', dmg: 24, exhaust: true },
   bloodRitual: { name: '血の儀式', cost: 1, type: 'A', rarity: 'legendary', dmg: 18, weak: 2, exhaust: true },
   fateEngine: { name: '運命機関', cost: 2, type: 'P', rarity: 'legendary', strengthPerTurn: 1, upgradeTo: 'fateEngine_p' },
   fateEngine_p: { name: '運命機関+', cost: 2, type: 'P', rarity: 'legendary', strengthPerTurn: 2, upgraded: true },
+  timeSpiral: { name: '時巡り', cost: 2, type: 'S', rarity: 'legendary', drawCount: 5, gainEnergy: 2, exhaust: true, upgradeTo: 'timeSpiral_p' },
+  timeSpiral_p: { name: '時巡り+', cost: 2, type: 'S', rarity: 'legendary', drawCount: 6, gainEnergy: 2, exhaust: true, upgraded: true },
 };
 
-const potionDefs = {
-  healPotion: { id: 'healPotion', name: '回復ポーション', desc: 'HPを18回復', combatOnly: false, use: () => { const before = state.player.hp; state.player.hp = Math.min(state.player.maxHp, state.player.hp + 18); addLog(`回復ポーション: HP ${before}→${state.player.hp}`); } },
-  bombPotion: { id: 'bombPotion', name: '爆発ポーション', desc: '敵全体に15ダメージ', combatOnly: true, use: () => { aliveEnemies().forEach((e) => damage(e, 15)); addLog('爆発ポーション: 敵全体に15ダメージ。'); } },
-  fortPotion: { id: 'fortPotion', name: '鉄壁ポーション', desc: '戦闘中のみ: 15ブロックを得る', combatOnly: true, use: () => { gainBlock(state.player, 15); addLog('鉄壁ポーション: 15ブロック。'); } },
-  furyPotion: { id: 'furyPotion', name: '激怒ポーション', desc: '筋力+2（戦闘中）', combatOnly: true, use: () => { state.player.strengthCombat += 2; addLog('激怒ポーション: 筋力+2。'); } },
-  weakenPotion: { id: 'weakenPotion', name: '衰弱ポーション', desc: '対象に弱体2', combatOnly: true, use: () => { const t = currentTarget(); if (t) { t.weak += 2; addLog(`${t.name}に弱体2。`); } } },
-  drawPotion: { id: 'drawPotion', name: '閃きポーション', desc: 'カードを2枚引く', combatOnly: true, use: () => { draw(2); addLog('閃きポーション: 2枚ドロー。'); } },
+const itemDefs = {
+  healPotion: { id: 'healPotion', name: '回復薬', desc: 'HPを18回復', combatOnly: false, use: () => { const before = state.player.hp; state.player.hp = Math.min(state.player.maxHp, state.player.hp + 18); addLog(`回復薬: HP ${before}→${state.player.hp}`); } },
+  bombPotion: { id: 'bombPotion', name: '火炎壺', desc: '敵全体に15ダメージ', combatOnly: true, use: () => { aliveEnemies().forEach((e) => damage(e, 15)); addLog('火炎壺: 敵全体に15ダメージ。'); } },
+  fortPotion: { id: 'fortPotion', name: '防護札', desc: '戦闘中のみ: 15ブロックを得る', combatOnly: true, use: () => { gainBlock(state.player, 15); addLog('防護札: 15ブロック。'); } },
+  furyPotion: { id: 'furyPotion', name: '戦神の香', desc: '筋力+2（戦闘中）', combatOnly: true, use: () => { state.player.strengthCombat += 2; addLog('戦神の香: 筋力+2。'); } },
+  weakenPotion: { id: 'weakenPotion', name: '呪縛の粉', desc: '対象に弱体2', combatOnly: true, use: () => { const t = currentTarget(); if (t) { t.weak += 2; addLog(`${t.name}に弱体2。`); } } },
+  drawPotion: { id: 'drawPotion', name: '戦術の巻物', desc: 'カードを2枚引く', combatOnly: true, use: () => { draw(2); addLog('戦術の巻物: 2枚ドロー。'); } },
+  smokeBomb: { id: 'smokeBomb', name: '煙幕玉', desc: '敵全体に脱力2', combatOnly: true, use: () => { aliveEnemies().forEach((e) => { e.drain += 2; }); addLog('煙幕玉: 敵全体に脱力2。'); } },
+  coinCharm: { id: 'coinCharm', name: '金貨のお守り', desc: '25Gを得る', combatOnly: false, use: () => { state.gold += 25; addLog('金貨のお守り: 25Gを得た。'); } },
 };
 
 const normalEnemyPool = [
@@ -65,11 +85,12 @@ const elitePool = [
 const bossPool = [{ name: 'ボス・覚醒者', hp: 150, gold: 0, isBoss: true, intents: [{ type: 'attack', value: 18 }, { type: 'attackBlock', value: 12, block: 14 }, { type: 'buff', value: 3 }, { type: 'weakenAttack', weak: 2, value: 14 }] }];
 
 const relicPool = [
-  { id: 'whetstone', name: '砥石', rarity: 'common', text: '攻撃カードのダメージ+1（永続）', onDealDamageBonus: 1 },
+  { id: 'whetstone', name: '砥石', rarity: 'common', text: '戦闘開始時に8ブロック', onCombatStart: () => gainBlock(state.player, 8) },
   { id: 'horn', name: '角笛', rarity: 'uncommon', text: '各ターン開始時に2ブロック', applyStartTurn: () => gainBlock(state.player, 2) },
   { id: 'heart', name: '赤いハート', rarity: 'rare', text: '最大HP+10、即時10回復', onGain: () => { state.player.maxHp += 10; state.player.hp = Math.min(state.player.maxHp, state.player.hp + 10); } },
   { id: 'ruby', name: '紅蓮のルビー', rarity: 'rare', text: '与ダメージ+2。戦闘開始時に筋力+2', onDealDamageBonus: 2, onCombatStart: () => { state.player.strengthCombat += 2; addLog('紅蓮のルビー: 戦闘開始時に筋力+2'); } },
   { id: 'mirror', name: '鏡面の欠片', rarity: 'legendary', text: '筋力+1（永続）', onGain: () => { state.player.strengthBase += 1; } },
+  { id: 'belt', name: '冒険者のベルト', rarity: 'uncommon', text: 'アイテム所持枠+2（最大7）', onGain: () => { state.player.itemSlots = Math.min(state.player.maxItemSlots, state.player.itemSlots + 2); } },
 ];
 
 const mapTexts = [
@@ -87,16 +108,17 @@ const shopCards = Object.keys(cardDefs).filter((k) => !cardDefs[k].upgraded);
 
 const defaultState = () => ({
   floor: 1, maxFloor: 10, gold: 120, mode: 'map', mapText: mapTexts[0], nextNode: 'combat', eventState: null, turn: 0,
-  rewardTaken: false, relicTaken: false, rewardChoices: [], shopChoices: [], shopPotionChoices: [], relicChoices: [], campChoices: [],
+  rewardTaken: false, relicTaken: false, rewardChoices: [], shopChoices: [], shopItemChoices: [], relicChoices: [], campChoices: [],
   postCombatLocked: false, eliteOffer: null, showDeck: false, showRelics: false, selectedTarget: 0, screenHidden: false,
   items: ['healPotion', 'bombPotion'],
   player: {
     maxHp: 70, hp: 70, block: 0, energy: 3,
     strengthBase: 0, strengthCombat: 0, weak: 0, vuln: 0, drain: 0,
     deck: ['strike', 'strike', 'strike', 'defend', 'defend', 'bash', 'battleCry', 'sweep', 'flurry', 'quick'],
+    itemSlots: 3, maxItemSlots: 7,
     draw: [], hand: [], discard: [], relics: [], powers: { blockPerTurn: 0, drawPerTurn: 0, strengthPerTurn: 0 },
   },
-  enemies: [], usedPowers: [], log: [],
+  enemies: [], log: [],
 });
 
 let state = defaultState();
@@ -118,8 +140,12 @@ const cardLabel = (id) => `<span class="${cardDefs[id].upgraded ? 'upgraded' : '
 function cardEffectText(id) {
   const c = cardDefs[id]; const p = [];
   if (c.dmg) p.push(`敵に${calcPlayerDamage(c.dmg)}ダメージ${c.hits ? ` x${c.hits}` : ''}`);
+  if (c.randomDmg) p.push(`ランダムな敵に${calcPlayerDamage(c.randomDmg)}ダメージ x${c.randomHits}`);
   if (c.aoe) p.push(`敵全体に${calcPlayerDamage(c.aoe)}ダメージ`);
   if (c.block) p.push(`自分に${c.block}ブロック`);
+  if (c.heal) p.push(`HPを${c.heal}回復`);
+  if (c.drawCount) p.push(`${c.drawCount}枚ドロー`);
+  if (c.gainEnergy) p.push(`エナジー+${c.gainEnergy}`);
   if (c.weak) p.push(`弱体${c.weak}`);
   if (c.strengthGain) p.push(`筋力+${c.strengthGain}`);
   if (c.blockPerTurn) p.push(`毎ターン${c.blockPerTurn}ブロック`);
@@ -164,7 +190,6 @@ function startCombat(encounter = null) {
   state.selectedTarget = 0;
   state.mode = 'combat';
   state.turn = 1;
-  state.usedPowers = [];
   Object.assign(state.player, { block: 0, energy: 3, strengthCombat: 0, weak: 0, vuln: 0, drain: 0, draw: shuffle(state.player.deck), hand: [], discard: [] });
   draw(5);
   state.enemies.forEach(chooseEnemyIntent);
@@ -183,18 +208,30 @@ function applyPowerOnPlay(c) {
 
 function playCard(index) {
   const id = state.player.hand[index]; const c = cardDefs[id]; if (!c || c.cost > state.player.energy) return;
-  if (c.type === 'P' && state.usedPowers.includes(id)) { addLog(`${c.name}はこの戦闘ですでに使用済み。`); render(); return; }
   const target = currentTarget();
   state.player.energy -= c.cost;
   state.player.hand.splice(index, 1);
-  if (!c.exhaust) state.player.discard.push(id);
+  if (!(c.exhaust || c.type === 'P')) state.player.discard.push(id);
 
   if (c.dmg && target) { const hits = c.hits || 1; let total = 0; for (let i = 0; i < hits; i += 1) { if (target.hp <= 0) break; total += damage(target, calcPlayerDamage(c.dmg)); } addLog(`${c.name}で${target.name}に${total}ダメージ。`); }
+  if (c.randomDmg) {
+    let total = 0;
+    for (let i = 0; i < c.randomHits; i += 1) {
+      const list = aliveEnemies();
+      if (list.length === 0) break;
+      const pick = list[Math.floor(Math.random() * list.length)];
+      total += damage(pick, calcPlayerDamage(c.randomDmg));
+    }
+    addLog(`${c.name}でランダム攻撃、合計${total}ダメージ。`);
+  }
   if (c.aoe) { aliveEnemies().forEach((e) => damage(e, calcPlayerDamage(c.aoe))); addLog(`${c.name}で敵全体を攻撃。`); }
   if (c.block) gainBlock(state.player, c.block);
+  if (c.heal) { const before = state.player.hp; state.player.hp = Math.min(state.player.maxHp, state.player.hp + c.heal); addLog(`${c.name}でHP ${before}→${state.player.hp}`); }
+  if (c.drawCount) { draw(c.drawCount); addLog(`${c.name}で${c.drawCount}枚ドロー。`); }
+  if (c.gainEnergy) { state.player.energy += c.gainEnergy; addLog(`${c.name}でエナジー+${c.gainEnergy}。`); }
   if (c.weak && target) { target.weak += c.weak; addLog(`${target.name}に弱体${c.weak}。`); }
   if (c.strengthGain) { state.player.strengthCombat += c.strengthGain; addLog(`筋力が${c.strengthGain}上昇。`); }
-  if (c.type === 'P') { applyPowerOnPlay(c); state.usedPowers.push(id); addLog(`パワー発動: ${c.name}`); }
+  if (c.type === 'P') { applyPowerOnPlay(c); addLog(`パワー発動: ${c.name}（この戦闘では廃棄）`); }
 
   if (aliveEnemies().length === 0) { victory(); return; }
   render();
@@ -230,12 +267,12 @@ function endTurn() { state.player.hand.forEach((c) => state.player.discard.push(
 function availableRelics() { const owned = new Set(state.player.relics.map((r) => r.id)); return relicPool.filter((r) => !owned.has(r.id)); }
 function pickRewardChoices(elite = false) { const common = rewardCards.filter((id) => cardDefs[id].rarity === 'common'); const high = rewardCards.filter((id) => cardDefs[id].rarity !== 'common'); return shuffle(elite ? [...shuffle(high).slice(0, 9), ...shuffle(common).slice(0, 1)] : rewardCards).slice(0, 3); }
 
-function maybeDropPotion() {
-  if (Math.random() >= 0.3 || state.items.length >= 5) return;
-  const keys = Object.keys(potionDefs);
+function maybeDropItem() {
+  if (Math.random() >= 0.3 || state.items.length >= state.player.itemSlots) return;
+  const keys = Object.keys(itemDefs);
   const drop = keys[Math.floor(Math.random() * keys.length)];
   state.items.push(drop);
-  addLog(`ポーションドロップ: ${potionDefs[drop].name}`);
+  addLog(`アイテムドロップ: ${itemDefs[drop].name}`);
 }
 
 function victory() {
@@ -244,7 +281,7 @@ function victory() {
   const earned = state.enemies.reduce((sum, e) => sum + (e.gold || 0), 0);
   state.gold += earned;
   addLog(`戦闘報酬: ${earned}G`);
-  maybeDropPotion();
+  maybeDropItem();
   state.mode = 'reward';
   state.rewardTaken = false;
   state.relicTaken = !elite;
@@ -259,7 +296,7 @@ function chooseRelic(id) { const r = relicPool.find((x) => x.id === id); if (!r)
 
 function useItemAt(index) {
   const key = state.items[index];
-  const p = potionDefs[key];
+  const p = itemDefs[key];
   if (!p) return;
   if (p.combatOnly && state.mode !== 'combat') return;
   p.use();
@@ -271,12 +308,12 @@ function useItemAt(index) {
 function enterShop() {
   state.mode = 'shop';
   state.shopChoices = shuffle(shopCards).slice(0, 5).map((id) => ({ id, price: 45 + cardDefs[id].cost * 15 + ({ uncommon: 20, rare: 55, legendary: 100 }[cardDefs[id].rarity] || 0) }));
-  state.shopPotionChoices = shuffle(Object.keys(potionDefs)).slice(0, 3).map((id) => ({ id, price: 35 }));
+  state.shopItemChoices = shuffle(Object.keys(itemDefs)).slice(0, 3).map((id) => ({ id, price: 35 }));
   render();
 }
 
 function buyCard(id, price) { if (state.gold < price) return; state.gold -= price; state.player.deck.push(id); addLog(`${cardDefs[id].name}を購入。`); state.shopChoices = state.shopChoices.filter((c) => c.id !== id); render(); }
-function buyPotion(id, price) { if (state.gold < price || state.items.length >= 5) return; state.gold -= price; state.items.push(id); addLog(`${potionDefs[id].name}を購入。`); state.shopPotionChoices = state.shopPotionChoices.filter((p) => p.id !== id); render(); }
+function buyItem(id, price) { if (state.gold < price || state.items.length >= state.player.itemSlots) return; state.gold -= price; state.items.push(id); addLog(`${itemDefs[id].name}を購入。`); state.shopItemChoices = state.shopItemChoices.filter((p) => p.id !== id); render(); }
 function leaveShop() { state.postCombatLocked = true; state.mode = 'postCombat'; render(); }
 
 function enterCamp() { state.mode = 'camp'; state.campChoices = [...new Set(state.player.deck)].slice(0, 12); render(); }
@@ -320,7 +357,7 @@ function resolveEvent(action) {
   }
 
   if (ev.key === 'merchant') {
-    if (action === 'take') { state.gold += 35; if (state.items.length < 5) state.items.push('fortPotion'); ev.result = '荷袋から35Gと鉄壁ポーションを得た。'; }
+    if (action === 'take') { state.gold += 35; if (state.items.length < state.player.itemSlots) state.items.push('fortPotion'); ev.result = '荷袋から35Gと防護札を得た。'; }
     else ev.result = '荷袋には触れず、静かに去った。';
   }
 
@@ -366,8 +403,8 @@ function hpBar(cur, max) { return `<div class="hp-bar"><span style="width:${Math
 function renderTopControls() { const h1 = document.querySelector('header h1'); if (h1) h1.innerHTML = `Mini Spire <span class="version">Ver${VERSION}</span>`; el.topControls.innerHTML = `<button id="saveBtn">セーブ</button><button id="screenBtn">${state.screenHidden ? 'スクリーン解除' : 'スクリーン'}</button><button id="loadBtn">ロード</button><button id="restartBtn">ニューゲーム</button>`; document.getElementById('saveBtn').addEventListener('click', saveGame); document.getElementById('screenBtn').addEventListener('click', toggleScreenMask); document.getElementById('loadBtn').addEventListener('click', loadGame); document.getElementById('restartBtn').addEventListener('click', restart); }
 
 function renderHUD() {
-  const slots = Array.from({ length: 5 }, (_, i) => state.items[i] || null);
-  el.hud.innerHTML = `<div class="grid hud-grid-5"><div class="stat">HP: ${state.player.hp} / ${state.player.maxHp}</div><div class="stat">階層: ${state.floor} / ${state.maxFloor}</div><div class="stat">所持金: ${state.gold}G</div><button class="stat deck-btn" id="deckBtn">デッキ: ${state.player.deck.length}枚</button><button class="stat deck-btn" id="relicBtn">所持レリック一覧</button></div><div class="row" style="margin-top:0.5rem;">${slots.map((id, idx) => { if (!id) return '<button class="is-disabled" disabled>空スロット</button>'; const p = potionDefs[id]; const en = !p.combatOnly || state.mode === 'combat'; return `<button data-item-index="${idx}" class="${en ? '' : 'is-disabled'}" ${en ? '' : 'disabled'} title="${p.desc}">${p.name}</button>`; }).join('')}</div>${renderDeckList()}${renderRelicList()}`;
+  const slots = Array.from({ length: state.player.itemSlots }, (_, i) => state.items[i] || null);
+  el.hud.innerHTML = `<div class="grid hud-grid-5"><div class="stat">HP: ${state.player.hp} / ${state.player.maxHp}</div><div class="stat">階層: ${state.floor} / ${state.maxFloor}</div><div class="stat">所持金: ${state.gold}G</div><button class="stat deck-btn" id="deckBtn">デッキ: ${state.player.deck.length}枚</button><button class="stat deck-btn" id="relicBtn">所持レリック一覧</button></div><div class="small">アイテム: ${state.items.length} / ${state.player.itemSlots}</div><div class="row" style="margin-top:0.5rem;">${slots.map((id, idx) => { if (!id) return '<button class="is-disabled" disabled>空スロット</button>'; const p = itemDefs[id]; const en = !p.combatOnly || state.mode === 'combat'; return `<button data-item-index="${idx}" class="${en ? '' : 'is-disabled'}" ${en ? '' : 'disabled'} title="${p.desc}">${p.name}</button>`; }).join('')}</div>${renderDeckList()}${renderRelicList()}`;
   document.getElementById('deckBtn').addEventListener('click', toggleDeck);
   document.getElementById('relicBtn').addEventListener('click', toggleRelics);
   el.hud.querySelectorAll('[data-item-index]').forEach((btn) => btn.addEventListener('click', () => useItemAt(Number(btn.dataset.itemIndex))));
@@ -431,9 +468,9 @@ function renderActions() {
   if (state.mode === 'postCombat') { el.actions.innerHTML = `<div class="row"><button id="toCamp" ${state.postCombatLocked ? 'disabled class="is-disabled"' : ''}>焚き火へ</button><button id="toShop" ${state.postCombatLocked ? 'disabled class="is-disabled"' : ''}>ショップへ</button><button id="nextFloor">次の階層へ</button></div>`; if (!state.postCombatLocked) { document.getElementById('toCamp').addEventListener('click', enterCamp); document.getElementById('toShop').addEventListener('click', enterShop); } document.getElementById('nextFloor').addEventListener('click', nextFloor); return; }
 
   if (state.mode === 'shop') {
-    el.actions.innerHTML = `<p class="small">カード購入</p><div class="row">${state.shopChoices.map((c) => `<button data-buy="${c.id}" data-price="${c.price}" class="${getCardRarityClass(c.id)} ${state.gold < c.price ? 'is-disabled' : ''}" ${state.gold < c.price ? 'disabled' : ''}>${cardLabel(c.id)}<br><span class="small">${cardEffectText(c.id)} / ${c.price}G</span></button>`).join('')}</div><p class="small">ポーション購入</p><div class="row">${state.shopPotionChoices.map((p) => `<button data-buy-pot="${p.id}" data-price="${p.price}" ${(state.items.length >= 5 || state.gold < p.price) ? 'disabled class="is-disabled"' : ''}>${potionDefs[p.id].name}<br><span class="small">${potionDefs[p.id].desc} / ${p.price}G</span></button>`).join('')}</div><div class="row" style="margin-top:0.6rem;"><button id="leaveShop">ショップを出る</button></div>`;
+    el.actions.innerHTML = `<p class="small">カード購入</p><div class="row">${state.shopChoices.map((c) => `<button data-buy="${c.id}" data-price="${c.price}" class="${getCardRarityClass(c.id)} ${state.gold < c.price ? 'is-disabled' : ''}" ${state.gold < c.price ? 'disabled' : ''}>${cardLabel(c.id)}<br><span class="small">${cardEffectText(c.id)} / ${c.price}G</span></button>`).join('')}</div><p class="small">アイテム購入</p><div class="row">${state.shopItemChoices.map((p) => `<button data-buy-item="${p.id}" data-price="${p.price}" ${(state.items.length >= state.player.itemSlots || state.gold < p.price) ? 'disabled class="is-disabled"' : ''}>${itemDefs[p.id].name}<br><span class="small">${itemDefs[p.id].desc} / ${p.price}G</span></button>`).join('')}</div><div class="row" style="margin-top:0.6rem;"><button id="leaveShop">ショップを出る</button></div>`;
     el.actions.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => buyCard(b.dataset.buy, Number(b.dataset.price))));
-    el.actions.querySelectorAll('[data-buy-pot]').forEach((b) => b.addEventListener('click', () => buyPotion(b.dataset.buyPot, Number(b.dataset.price))));
+    el.actions.querySelectorAll('[data-buy-item]').forEach((b) => b.addEventListener('click', () => buyItem(b.dataset.buyItem, Number(b.dataset.price))));
     document.getElementById('leaveShop').addEventListener('click', leaveShop);
     return;
   }
