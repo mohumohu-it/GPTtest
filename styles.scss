@@ -1,0 +1,42 @@
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; font-family: "Noto Sans JP", system-ui, -apple-system, sans-serif; color: #e7edf7; background: radial-gradient(circle at top, #1f2b3d, #11151c 55%); }
+.app { max-width: 1080px; margin: 0 auto; padding: 1rem; display: grid; gap: 0.8rem; }
+.topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; }
+.top-controls { display: flex; gap: 0.4rem; }
+header h1 { margin: 0; color: #7dcfff; }
+header p { margin: 0.25rem 0 0; opacity: 0.9; }
+
+.hud, .state, .actions, .log { background: #1a2230; border: 1px solid rgba(255,255,255,0.12); border-radius: 0.75rem; padding: 0.75rem; }
+.grid { display: grid; gap: 0.5rem; }
+.hud-grid-5 { grid-template-columns: repeat(5, minmax(120px, 1fr)); }
+.status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.6rem; }
+.enemy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.55rem; margin-top: 0.6rem; }
+.panel { background: rgba(0,0,0,0.2); border-radius: 0.6rem; padding: 0.6rem; border: 1px solid rgba(255,255,255,0.08); }
+.player-panel h3 { color: #a8dbff; }
+.enemy-panel h3 { color: #ffd2a8; }
+.enemy-card { width: 100%; }
+.selected-target { border-color: #7dcfff; box-shadow: 0 0 0 1px #7dcfff inset; }
+
+.stat { background: rgba(0,0,0,0.2); border-radius: 0.5rem; padding: 0.5rem; border: none; color: #e7edf7; text-align: left; }
+.deck-btn { cursor: pointer; }
+.deck-view { margin-top: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 0.5rem; padding: 0.5rem; }
+
+button, .card-button { background: #27354c; color: #e7edf7; border: 1px solid rgba(255,255,255,0.2); border-radius: 0.5rem; padding: 0.45rem 0.55rem; cursor: pointer; text-align: left; }
+button:hover, .card-button:hover { border-color: #7dcfff; }
+
+.is-disabled, .card-button.is-disabled, button:disabled, .card-button:disabled { opacity: 0.35; filter: grayscale(0.45); cursor: not-allowed; }
+.rarity-common { border-left: 4px solid #cfd6e0; }
+.rarity-uncommon { border-left: 4px solid #43b8ff; }
+.rarity-rare { border-left: 4px solid #ffd35a; }
+.rarity-legendary { border-left: 4px solid #ff6f6f; }
+.upgraded { color: #8fff9f; font-weight: 700; }
+
+.row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.small { font-size: 0.85rem; opacity: 0.9; }
+.block { color: #8fff9f; }
+.hp-bar { height: 10px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow: hidden; margin-bottom: 0.5rem; }
+.hp-bar span { display: block; height: 100%; background: linear-gradient(90deg, #ff9bad, #ff5e7d); }
+.log { max-height: 260px; overflow: auto; line-height: 1.45; }
+.log-entry { padding: 0.2rem 0; border-bottom: 1px dashed rgba(255,255,255,0.1); }
+
+.version { font-size: 0.55em; color: #b9c5d6; margin-left: 0.35rem; }
