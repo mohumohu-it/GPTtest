@@ -40,3 +40,33 @@ button:hover, .card-button:hover { border-color: #7dcfff; }
 .log-entry { padding: 0.2rem 0; border-bottom: 1px dashed rgba(255,255,255,0.1); }
 
 .version { font-size: 0.55em; color: #b9c5d6; margin-left: 0.35rem; }
+
+
+[data-tip] { position: relative; }
+[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: #0f1722;
+  color: #e7edf7;
+  border: 1px solid rgba(255,255,255,0.24);
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.5rem;
+  white-space: nowrap;
+  z-index: 30;
+  font-size: 0.78rem;
+  pointer-events: none;
+}
+[data-tip]:hover::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(255,255,255,0.24);
+  z-index: 29;
+  pointer-events: none;
+}

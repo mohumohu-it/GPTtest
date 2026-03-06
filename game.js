@@ -1,5 +1,5 @@
-const VERSION = '1.00';
-const STORAGE_KEY = 'mini_spire_save_v7';
+const VERSION = '1.01';
+const STORAGE_KEY = 'mini_spire_save_v8';
 
 const cardDefs = {
   strike: { name: 'ストライク', cost: 1, type: 'A', rarity: 'common', dmg: 6, upgradeTo: 'strike_p' },
@@ -14,18 +14,38 @@ const cardDefs = {
   sweep_p: { name: '薙ぎ払い+', cost: 1, type: 'A', rarity: 'common', aoe: 6, upgraded: true },
   flurry: { name: '連打', cost: 1, type: 'A', rarity: 'common', dmg: 2, hits: 3, upgradeTo: 'flurry_p' },
   flurry_p: { name: '連打+', cost: 1, type: 'A', rarity: 'common', dmg: 2, hits: 4, upgraded: true },
+  guardAura: { name: '守護のオーラ', cost: 1, type: 'P', rarity: 'common', blockPerTurn: 2, upgradeTo: 'guardAura_p' },
+  guardAura_p: { name: '守護のオーラ+', cost: 1, type: 'P', rarity: 'common', blockPerTurn: 3, upgraded: true },
+
   quick: { name: 'クイックジャブ', cost: 0, type: 'A', rarity: 'uncommon', dmg: 4, upgradeTo: 'quick_p' },
   quick_p: { name: 'クイックジャブ+', cost: 0, type: 'A', rarity: 'uncommon', dmg: 6, upgraded: true },
   ironwall: { name: '鉄壁', cost: 1, type: 'S', rarity: 'uncommon', block: 8, upgradeTo: 'ironwall_p' },
   ironwall_p: { name: '鉄壁+', cost: 1, type: 'S', rarity: 'uncommon', block: 11, upgraded: true },
   rage: { name: '激昂', cost: 1, type: 'A', rarity: 'uncommon', dmg: 5, block: 3, upgradeTo: 'rage_p' },
   rage_p: { name: '激昂+', cost: 1, type: 'A', rarity: 'uncommon', dmg: 7, block: 5, upgraded: true },
+  keenMind: { name: '明鏡止水', cost: 1, type: 'P', rarity: 'uncommon', drawPerTurn: 1, upgradeTo: 'keenMind_p' },
+  keenMind_p: { name: '明鏡止水+', cost: 1, type: 'P', rarity: 'uncommon', drawPerTurn: 2, upgraded: true },
+
   uppercut: { name: 'アッパーカット', cost: 2, type: 'A', rarity: 'rare', dmg: 11, weak: 2, upgradeTo: 'uppercut_p' },
   uppercut_p: { name: 'アッパーカット+', cost: 2, type: 'A', rarity: 'rare', dmg: 14, weak: 2, upgraded: true },
   execute: { name: '処刑', cost: 2, type: 'A', rarity: 'rare', dmg: 16, upgradeTo: 'execute_p' },
   execute_p: { name: '処刑+', cost: 2, type: 'A', rarity: 'rare', dmg: 21, upgraded: true },
+  bloodPact: { name: '血盟', cost: 1, type: 'P', rarity: 'rare', strengthGain: 2, weakSelf: 1, upgradeTo: 'bloodPact_p' },
+  bloodPact_p: { name: '血盟+', cost: 1, type: 'P', rarity: 'rare', strengthGain: 3, upgraded: true },
+
   meteor: { name: 'メテオブレイク', cost: 2, type: 'A', rarity: 'legendary', dmg: 24, exhaust: true },
   bloodRitual: { name: '血の儀式', cost: 1, type: 'A', rarity: 'legendary', dmg: 18, weak: 2, exhaust: true },
+  fateEngine: { name: '運命機関', cost: 2, type: 'P', rarity: 'legendary', strengthPerTurn: 1, upgradeTo: 'fateEngine_p' },
+  fateEngine_p: { name: '運命機関+', cost: 2, type: 'P', rarity: 'legendary', strengthPerTurn: 2, upgraded: true },
+};
+
+const potionDefs = {
+  healPotion: { id: 'healPotion', name: '回復ポーション', desc: 'HPを18回復', combatOnly: false, use: () => { const before = state.player.hp; state.player.hp = Math.min(state.player.maxHp, state.player.hp + 18); addLog(`回復ポーション: HP ${before}→${state.player.hp}`); } },
+  bombPotion: { id: 'bombPotion', name: '爆発ポーション', desc: '敵全体に15ダメージ', combatOnly: true, use: () => { aliveEnemies().forEach((e) => damage(e, 15)); addLog('爆発ポーション: 敵全体に15ダメージ。'); } },
+  fortPotion: { id: 'fortPotion', name: '鉄壁ポーション', desc: '15ブロックを得る', combatOnly: false, use: () => { gainBlock(state.player, 15); addLog('鉄壁ポーション: 15ブロック。'); } },
+  furyPotion: { id: 'furyPotion', name: '激怒ポーション', desc: '筋力+2（戦闘中）', combatOnly: true, use: () => { state.player.strengthCombat += 2; addLog('激怒ポーション: 筋力+2。'); } },
+  weakenPotion: { id: 'weakenPotion', name: '衰弱ポーション', desc: '対象に弱体2', combatOnly: true, use: () => { const t = currentTarget(); if (t) { t.weak += 2; addLog(`${t.name}に弱体2。`); } } },
+  drawPotion: { id: 'drawPotion', name: '閃きポーション', desc: 'カードを2枚引く', combatOnly: true, use: () => { draw(2); addLog('閃きポーション: 2枚ドロー。'); } },
 };
 
 const normalEnemyPool = [
@@ -42,7 +62,6 @@ const elitePool = [
   { name: 'エリート・ラガヴーリン', hp: 72, gold: 65, isElite: true, intents: [{ type: 'attack', value: 14 }, { type: 'attackBlock', value: 10, block: 10 }, { type: 'buff', value: 2 }] },
   { name: 'エリート・グレムリンノブ', hp: 80, gold: 70, isElite: true, intents: [{ type: 'attack', value: 15 }, { type: 'weakenAttack', weak: 2, value: 11 }, { type: 'buff', value: 2 }] },
 ];
-
 const bossPool = [{ name: 'ボス・覚醒者', hp: 150, gold: 0, isBoss: true, intents: [{ type: 'attack', value: 18 }, { type: 'attackBlock', value: 12, block: 14 }, { type: 'buff', value: 3 }, { type: 'weakenAttack', weak: 2, value: 14 }] }];
 
 const relicPool = [
@@ -53,37 +72,31 @@ const relicPool = [
   { id: 'mirror', name: '鏡面の欠片', rarity: 'legendary', text: '筋力+1（永続）', onGain: () => { state.player.strengthBase += 1; } },
 ];
 
-const rewardCards = ['quick', 'ironwall', 'rage', 'uppercut', 'execute', 'meteor', 'bloodRitual', 'strike', 'defend', 'bash', 'battleCry', 'sweep', 'flurry'];
-const shopCards = ['quick', 'ironwall', 'rage', 'uppercut', 'execute', 'meteor', 'bloodRitual', 'battleCry', 'sweep', 'flurry'];
+const mapTexts = [
+  '次の敵を探して進む。',
+  '暗い通路の先に、何かの気配を感じる。',
+  '靴音が反響する。戦いはすぐそこだ。',
+  '湿った空気が肺を刺す。慎重に進む。',
+  '遠くで金属音が鳴る。誰かが待ち構えている。',
+  '崩れた柱の影を縫って、先へ進んだ。',
+  '静寂が不気味だ。次の一手を探る。',
+];
+
+const rewardCards = Object.keys(cardDefs);
+const shopCards = Object.keys(cardDefs).filter((k) => !cardDefs[k].upgraded);
 
 const defaultState = () => ({
-  floor: 1,
-  maxFloor: 10,
-  gold: 120,
-  mode: 'map',
-  nextNode: 'combat',
-  eventState: null,
-  turn: 0,
-  rewardTaken: false,
-  relicTaken: false,
-  rewardChoices: [],
-  shopChoices: [],
-  relicChoices: [],
-  campChoices: [],
-  postCombatLocked: false,
-  eliteOffer: null,
-  showDeck: false,
-  showRelics: false,
-  selectedTarget: 0,
-  items: { healPotion: 1, bombPotion: 1 },
+  floor: 1, maxFloor: 10, gold: 120, mode: 'map', mapText: mapTexts[0], nextNode: 'combat', eventState: null, turn: 0,
+  rewardTaken: false, relicTaken: false, rewardChoices: [], shopChoices: [], shopPotionChoices: [], relicChoices: [], campChoices: [],
+  postCombatLocked: false, eliteOffer: null, showDeck: false, showRelics: false, selectedTarget: 0,
+  items: ['healPotion', 'bombPotion'],
   player: {
     maxHp: 70, hp: 70, block: 0, energy: 3,
     strengthBase: 0, strengthCombat: 0, weak: 0, vuln: 0, drain: 0,
     deck: ['strike', 'strike', 'strike', 'defend', 'defend', 'bash', 'battleCry', 'sweep', 'flurry', 'quick'],
-    draw: [], hand: [], discard: [], relics: [],
+    draw: [], hand: [], discard: [], relics: [], powers: { blockPerTurn: 0, drawPerTurn: 0, strengthPerTurn: 0 },
   },
-  enemies: [],
-  log: [],
+  enemies: [], log: [],
 });
 
 let state = defaultState();
@@ -95,10 +108,9 @@ const aliveEnemies = () => state.enemies.filter((e) => e.hp > 0);
 const currentTarget = () => state.enemies[state.selectedTarget]?.hp > 0 ? state.enemies[state.selectedTarget] : aliveEnemies()[0];
 const playerStrength = () => state.player.strengthBase + state.player.strengthCombat;
 const relicDamageBonus = () => state.player.relics.reduce((s, r) => s + (r.onDealDamageBonus || 0), 0);
-const applyDrain = (amount, unit) => (unit.drain > 0 ? Math.floor(amount * 0.75) : amount);
-const calcPlayerDamage = (base) => Math.max(0, applyDrain(base + playerStrength() + relicDamageBonus(), state.player));
-const calcEnemyAttack = (enemy, base) => Math.max(0, applyDrain(base + (enemy.strength || 0), enemy));
-
+const applyDrain = (a, u) => (u.drain > 0 ? Math.floor(a * 0.75) : a);
+const calcPlayerDamage = (b) => Math.max(0, applyDrain(b + playerStrength() + relicDamageBonus(), state.player));
+const calcEnemyAttack = (e, b) => Math.max(0, applyDrain(b + (e.strength || 0), e));
 const getCardRarityClass = (id) => `rarity-${cardDefs[id].rarity || 'common'}`;
 const getRelicRarityClass = (r) => `rarity-${r.rarity || 'common'}`;
 const cardLabel = (id) => `<span class="${cardDefs[id].upgraded ? 'upgraded' : ''}">${cardDefs[id].type}.${cardDefs[id].name}【${cardDefs[id].cost}】</span>`;
@@ -110,44 +122,32 @@ function cardEffectText(id) {
   if (c.block) p.push(`自分に${c.block}ブロック`);
   if (c.weak) p.push(`弱体${c.weak}`);
   if (c.strengthGain) p.push(`筋力+${c.strengthGain}`);
+  if (c.blockPerTurn) p.push(`毎ターン${c.blockPerTurn}ブロック`);
+  if (c.drawPerTurn) p.push(`毎ターン${c.drawPerTurn}ドロー`);
+  if (c.strengthPerTurn) p.push(`毎ターン筋力+${c.strengthPerTurn}`);
   if (c.exhaust) p.push('廃棄');
   return p.join(' / ');
 }
 
-function gainBlock(unit, v) { const a = unit.vuln > 0 ? Math.max(0, Math.floor(v * 0.75)) : v; unit.block += a; addLog(`${unit === state.player ? 'あなた' : unit.name}は${a}ブロックを得た。`); }
-function damage(unit, amount) {
-  const amp = unit.weak > 0 ? Math.ceil(amount * 1.5) : amount;
-  const dealt = Math.max(0, amp - unit.block);
-  unit.block = Math.max(0, unit.block - amp);
-  unit.hp -= dealt;
-  return dealt;
-}
+function gainBlock(u, v) { const a = u.vuln > 0 ? Math.max(0, Math.floor(v * 0.75)) : v; u.block += a; addLog(`${u === state.player ? 'あなた' : u.name}は${a}ブロックを得た。`); }
+function damage(u, a) { const amp = u.weak > 0 ? Math.ceil(a * 1.5) : a; const dealt = Math.max(0, amp - u.block); u.block = Math.max(0, u.block - amp); u.hp -= dealt; return dealt; }
+function draw(n = 1) { for (let i = 0; i < n; i += 1) { if (state.player.draw.length === 0) { state.player.draw = shuffle(state.player.discard); state.player.discard = []; } const c = state.player.draw.shift(); if (c) state.player.hand.push(c); } }
+function chooseEnemyIntent(e) { e.intent = { ...e.intents[Math.floor(Math.random() * e.intents.length)] }; }
 
-function draw(n = 1) {
-  for (let i = 0; i < n; i += 1) {
-    if (state.player.draw.length === 0) { state.player.draw = shuffle(state.player.discard); state.player.discard = []; }
-    const c = state.player.draw.shift();
-    if (c) state.player.hand.push(c);
-  }
-}
-
-function chooseEnemyIntent(enemy) { enemy.intent = { ...enemy.intents[Math.floor(Math.random() * enemy.intents.length)] }; }
-function intentText(enemy) {
-  const i = enemy.intent;
-  if (!i) return '-';
-  if (i.type === 'attack') return `攻撃 ${calcEnemyAttack(enemy, i.value)}`;
+function intentText(e) {
+  const i = e.intent; if (!i) return '-';
+  if (i.type === 'attack') return `攻撃 ${calcEnemyAttack(e, i.value)}`;
   if (i.type === 'block') return `防御 ${i.block}`;
   if (i.type === 'buff') return `強化 筋力+${i.value}`;
-  if (i.type === 'attackBlock') return `攻撃 ${calcEnemyAttack(enemy, i.value)} + 防御 ${i.block}`;
+  if (i.type === 'attackBlock') return `攻撃 ${calcEnemyAttack(e, i.value)} + 防御 ${i.block}`;
   if (i.type === 'weaken') return `弱体付与 ${i.weak}`;
-  if (i.type === 'weakenAttack') return `攻撃 ${calcEnemyAttack(enemy, i.value)} + 弱体${i.weak}`;
+  if (i.type === 'weakenAttack') return `攻撃 ${calcEnemyAttack(e, i.value)} + 弱体${i.weak}`;
   return '???';
 }
 
 function spawnNormalGroup() {
   const targetDanger = 5 + Math.floor(Math.random() * 6);
-  let sum = 0;
-  const group = [];
+  let sum = 0; const group = [];
   while (sum <= targetDanger && group.length < 6) {
     const seed = normalEnemyPool[Math.floor(Math.random() * normalEnemyPool.length)];
     group.push({ ...seed, maxHp: seed.hp, hp: seed.hp, block: 0, weak: 0, vuln: 0, drain: 0, strength: 0, intent: null });
@@ -172,26 +172,26 @@ function startCombat(encounter = null) {
   render();
 }
 
-function playCard(index) {
-  const id = state.player.hand[index];
-  const c = cardDefs[id];
-  if (!c || c.cost > state.player.energy) return;
-  const target = currentTarget();
+function applyPowerOnPlay(c) {
+  if (c.blockPerTurn) state.player.powers.blockPerTurn += c.blockPerTurn;
+  if (c.drawPerTurn) state.player.powers.drawPerTurn += c.drawPerTurn;
+  if (c.strengthPerTurn) state.player.powers.strengthPerTurn += c.strengthPerTurn;
+  if (c.weakSelf) state.player.weak += c.weakSelf;
+}
 
+function playCard(index) {
+  const id = state.player.hand[index]; const c = cardDefs[id]; if (!c || c.cost > state.player.energy) return;
+  const target = currentTarget();
   state.player.energy -= c.cost;
   state.player.hand.splice(index, 1);
   if (!c.exhaust) state.player.discard.push(id);
 
-  if (c.dmg && target) {
-    const hits = c.hits || 1;
-    let total = 0;
-    for (let i = 0; i < hits; i += 1) { if (target.hp <= 0) break; total += damage(target, calcPlayerDamage(c.dmg)); }
-    addLog(`${cardDefs[id].name}で${target.name}に${total}ダメージ。`);
-  }
-  if (c.aoe) { aliveEnemies().forEach((e) => damage(e, calcPlayerDamage(c.aoe))); addLog(`${cardDefs[id].name}で敵全体を攻撃。`); }
+  if (c.dmg && target) { const hits = c.hits || 1; let total = 0; for (let i = 0; i < hits; i += 1) { if (target.hp <= 0) break; total += damage(target, calcPlayerDamage(c.dmg)); } addLog(`${c.name}で${target.name}に${total}ダメージ。`); }
+  if (c.aoe) { aliveEnemies().forEach((e) => damage(e, calcPlayerDamage(c.aoe))); addLog(`${c.name}で敵全体を攻撃。`); }
   if (c.block) gainBlock(state.player, c.block);
   if (c.weak && target) { target.weak += c.weak; addLog(`${target.name}に弱体${c.weak}。`); }
   if (c.strengthGain) { state.player.strengthCombat += c.strengthGain; addLog(`筋力が${c.strengthGain}上昇。`); }
+  if (c.type === 'P') { applyPowerOnPlay(c); addLog(`パワー発動: ${c.name}`); }
 
   if (aliveEnemies().length === 0) { victory(); return; }
   render();
@@ -202,10 +202,7 @@ function doEnemyTurn() {
     if (e.hp <= 0) return;
     const i = e.intent;
     e.block = 0;
-    if (i.type === 'attack' || i.type === 'attackBlock' || i.type === 'weakenAttack') {
-      const dealt = damage(state.player, calcEnemyAttack(e, i.value));
-      addLog(`${e.name}の攻撃で${dealt}ダメージ。`);
-    }
+    if (i.type === 'attack' || i.type === 'attackBlock' || i.type === 'weakenAttack') { const dealt = damage(state.player, calcEnemyAttack(e, i.value)); addLog(`${e.name}の攻撃で${dealt}ダメージ。`); }
     if (i.type === 'block' || i.type === 'attackBlock') gainBlock(e, i.block);
     if (i.type === 'buff') { e.strength += i.value; addLog(`${e.name}の筋力が上昇。`); }
     if (i.type === 'weaken' || i.type === 'weakenAttack') { state.player.weak += i.weak; addLog(`あなたは弱体${i.weak}。`); }
@@ -213,14 +210,29 @@ function doEnemyTurn() {
 }
 
 function tickDebuffs(u) { u.weak = Math.max(0, u.weak - 1); u.vuln = Math.max(0, u.vuln - 1); u.drain = Math.max(0, u.drain - 1); }
-function startPlayerTurn() { state.turn += 1; state.player.block = 0; state.player.energy = 3; draw(5); state.enemies.forEach((e) => { if (e.hp > 0) chooseEnemyIntent(e); }); state.player.relics.forEach((r) => { if (r.applyStartTurn) r.applyStartTurn(); }); }
+
+function startPlayerTurn() {
+  state.turn += 1;
+  state.player.block = 0;
+  state.player.energy = 3;
+  if (state.player.powers.blockPerTurn > 0) gainBlock(state.player, state.player.powers.blockPerTurn);
+  if (state.player.powers.strengthPerTurn > 0) { state.player.strengthCombat += state.player.powers.strengthPerTurn; addLog(`パワー効果: 筋力+${state.player.powers.strengthPerTurn}`); }
+  draw(5 + state.player.powers.drawPerTurn);
+  state.enemies.forEach((e) => { if (e.hp > 0) chooseEnemyIntent(e); });
+  state.player.relics.forEach((r) => { if (r.applyStartTurn) r.applyStartTurn(); });
+}
+
 function endTurn() { state.player.hand.forEach((c) => state.player.discard.push(c)); state.player.hand = []; tickDebuffs(state.player); state.enemies.forEach(tickDebuffs); doEnemyTurn(); if (state.player.hp <= 0) { state.mode = 'dead'; render(); return; } startPlayerTurn(); render(); }
 
 function availableRelics() { const owned = new Set(state.player.relics.map((r) => r.id)); return relicPool.filter((r) => !owned.has(r.id)); }
-function pickRewardChoices(elite = false) {
-  const common = rewardCards.filter((id) => cardDefs[id].rarity === 'common');
-  const high = rewardCards.filter((id) => cardDefs[id].rarity !== 'common');
-  return shuffle(elite ? [...shuffle(high).slice(0, 9), ...shuffle(common).slice(0, 1)] : rewardCards).slice(0, 3);
+function pickRewardChoices(elite = false) { const common = rewardCards.filter((id) => cardDefs[id].rarity === 'common'); const high = rewardCards.filter((id) => cardDefs[id].rarity !== 'common'); return shuffle(elite ? [...shuffle(high).slice(0, 9), ...shuffle(common).slice(0, 1)] : rewardCards).slice(0, 3); }
+
+function maybeDropPotion() {
+  if (Math.random() >= 0.3 || state.items.length >= 5) return;
+  const keys = Object.keys(potionDefs);
+  const drop = keys[Math.floor(Math.random() * keys.length)];
+  state.items.push(drop);
+  addLog(`ポーションドロップ: ${potionDefs[drop].name}`);
 }
 
 function victory() {
@@ -229,6 +241,7 @@ function victory() {
   const earned = state.enemies.reduce((sum, e) => sum + (e.gold || 0), 0);
   state.gold += earned;
   addLog(`戦闘報酬: ${earned}G`);
+  maybeDropPotion();
   state.mode = 'reward';
   state.rewardTaken = false;
   state.relicTaken = !elite;
@@ -243,24 +256,26 @@ function skipReward() { state.rewardTaken = true; addLog('カード報酬を見�
 function chooseRelic(id) { const r = relicPool.find((x) => x.id === id); if (!r) return; state.player.relics.push(r); if (r.onGain) r.onGain(); state.relicTaken = true; state.relicChoices = []; addLog(`${r.name}を獲得。`); render(); }
 function skipRelic() { state.relicTaken = true; state.relicChoices = []; addLog('レリックを見送った。'); render(); }
 
-function useItem(type) {
-  if ((type === 'bombPotion' && state.mode !== 'combat') || state.items[type] <= 0) return;
-  if (type === 'healPotion') {
-    const before = state.player.hp;
-    state.player.hp = Math.min(state.player.maxHp, state.player.hp + 18);
-    addLog(`回復ポーション使用: HP ${before} → ${state.player.hp}`);
-  }
-  if (type === 'bombPotion') {
-    aliveEnemies().forEach((e) => damage(e, 15));
-    addLog('爆発ポーション使用: 敵全体に15ダメージ。');
-    if (aliveEnemies().length === 0) { state.items[type] -= 1; victory(); return; }
-  }
-  state.items[type] -= 1;
+function useItemAt(index) {
+  const key = state.items[index];
+  const p = potionDefs[key];
+  if (!p) return;
+  if (p.combatOnly && state.mode !== 'combat') return;
+  p.use();
+  state.items.splice(index, 1);
+  if (state.mode === 'combat' && aliveEnemies().length === 0) { victory(); return; }
   render();
 }
 
-function enterShop() { state.mode = 'shop'; state.shopChoices = shuffle(shopCards).slice(0, 5).map((id) => ({ id, price: 45 + cardDefs[id].cost * 15 + ({ uncommon: 20, rare: 55, legendary: 100 }[cardDefs[id].rarity] || 0) })); render(); }
+function enterShop() {
+  state.mode = 'shop';
+  state.shopChoices = shuffle(shopCards).slice(0, 5).map((id) => ({ id, price: 45 + cardDefs[id].cost * 15 + ({ uncommon: 20, rare: 55, legendary: 100 }[cardDefs[id].rarity] || 0) }));
+  state.shopPotionChoices = shuffle(Object.keys(potionDefs)).slice(0, 3).map((id) => ({ id, price: 35 }));
+  render();
+}
+
 function buyCard(id, price) { if (state.gold < price) return; state.gold -= price; state.player.deck.push(id); addLog(`${cardDefs[id].name}を購入。`); state.shopChoices = state.shopChoices.filter((c) => c.id !== id); render(); }
+function buyPotion(id, price) { if (state.gold < price || state.items.length >= 5) return; state.gold -= price; state.items.push(id); addLog(`${potionDefs[id].name}を購入。`); state.shopPotionChoices = state.shopPotionChoices.filter((p) => p.id !== id); render(); }
 function leaveShop() { state.postCombatLocked = true; state.mode = 'postCombat'; render(); }
 
 function enterCamp() { state.mode = 'camp'; state.campChoices = [...new Set(state.player.deck)].slice(0, 12); render(); }
@@ -271,28 +286,12 @@ function campUpgrade(id) { const up = cardDefs[id].upgradeTo; if (!up) return; c
 
 function openEvent() {
   const roll = Math.random();
-  if (roll < 0.34) {
-    state.eventState = {
-      key: 'chest',
-      title: '忘れられた宝箱',
-      text: '苔むした宝箱が、ぽつんと置かれている。長い年月、誰にも開けられていないようだ。',
-      resolved: false,
-    };
-  } else if (roll < 0.67) {
-    state.eventState = {
-      key: 'fountain',
-      title: '回復の泉',
-      text: '澄んだ泉が湧いている。身を清めるか、力を求めるか。',
-      resolved: false,
-    };
-  } else {
-    state.eventState = {
-      key: 'altar',
-      title: '血の祭壇',
-      text: '不気味な祭壇が脈打っている。血を捧げれば金を得られそうだ。',
-      resolved: false,
-    };
-  }
+  if (roll < 0.17) state.eventState = { key: 'chest', title: '忘れられた宝箱', text: '苔むした宝箱が、ぽつんと置かれている。長い年月、誰にも開けられていないようだ。', resolved: false };
+  else if (roll < 0.34) state.eventState = { key: 'fountain', title: '回復の泉', text: '澄んだ泉が湧いている。身を清めるか、力を求めるか。', resolved: false };
+  else if (roll < 0.51) state.eventState = { key: 'altar', title: '血の祭壇', text: '不気味な祭壇が脈打っている。血を捧げれば金を得られそうだ。', resolved: false };
+  else if (roll < 0.67) state.eventState = { key: 'merchant', title: '行商人の落とし物', text: '破れた荷袋を見つけた。中には金貨と見慣れない瓶。', resolved: false };
+  else if (roll < 0.84) state.eventState = { key: 'idol', title: '古びた偶像', text: '古代の偶像があなたを見つめている。触れるべきか？', resolved: false };
+  else state.eventState = { key: 'library', title: '静寂の書庫', text: '崩れかけの書庫に、まだ読める戦術書が残っている。', resolved: false };
   state.mode = 'event';
   render();
 }
@@ -304,32 +303,38 @@ function resolveEvent(action) {
   if (ev.key === 'chest') {
     if (action === 'open') {
       const r = availableRelics().find((x) => x.rarity === 'common');
-      if (r) { state.player.relics.push(r); if (r.onGain) r.onGain(); ev.result = `宝箱を開け、${r.name}を得た。`; }
-      else ev.result = '宝箱は空だった。';
+      ev.result = r ? `宝箱を開け、${r.name}を得た。` : '宝箱は空だった。';
+      if (r) { state.player.relics.push(r); if (r.onGain) r.onGain(); }
     } else ev.result = '宝箱を見送り、先へ進む。';
   }
 
   if (ev.key === 'fountain') {
-    if (action === 'heal') {
-      const heal = Math.ceil(state.player.maxHp * 0.2);
-      state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
-      ev.result = `泉で癒やされ、HPを${heal}回復した。`;
-    } else {
-      const inc = Math.ceil(state.player.maxHp * 0.1);
-      state.player.maxHp += inc;
-      state.player.hp += inc;
-      ev.result = `泉の力で最大HPが${inc}上昇した。`;
-    }
+    if (action === 'heal') { const heal = Math.ceil(state.player.maxHp * 0.2); state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal); ev.result = `泉で癒やされ、HPを${heal}回復した。`; }
+    else { const inc = Math.ceil(state.player.maxHp * 0.1); state.player.maxHp += inc; state.player.hp += inc; ev.result = `泉の力で最大HPが${inc}上昇した。`; }
   }
 
   if (ev.key === 'altar') {
-    if (action === 'offer') {
-      const lose = Math.ceil(state.player.maxHp * 0.12);
-      const gain = 45;
-      state.player.hp = Math.max(1, state.player.hp - lose);
-      state.gold += gain;
-      ev.result = `血を捧げ、HP${lose}を失う代わりに${gain}Gを得た。`;
-    } else ev.result = '祭壇には触れずに立ち去った。';
+    if (action === 'offer') { const lose = Math.ceil(state.player.maxHp * 0.12); const gain = 45; state.player.hp = Math.max(1, state.player.hp - lose); state.gold += gain; ev.result = `血を捧げ、HP${lose}を失う代わりに${gain}Gを得た。`; }
+    else ev.result = '祭壇には触れずに立ち去った。';
+  }
+
+  if (ev.key === 'merchant') {
+    if (action === 'take') { state.gold += 35; if (state.items.length < 5) state.items.push('fortPotion'); ev.result = '荷袋から35Gと鉄壁ポーションを得た。'; }
+    else ev.result = '荷袋には触れず、静かに去った。';
+  }
+
+  if (ev.key === 'idol') {
+    if (action === 'touch') { state.player.drain += 2; state.gold += 60; ev.result = '偶像の呪いで脱力2を受けたが、60Gを得た。'; }
+    else ev.result = 'あなたは偶像を無視した。';
+  }
+
+  if (ev.key === 'library') {
+    if (action === 'study') {
+      const pool = rewardCards.filter((id) => cardDefs[id].rarity === 'uncommon' || cardDefs[id].rarity === 'rare');
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      state.player.deck.push(pick);
+      ev.result = `書庫で${cardDefs[pick].name}を習得した。`;
+    } else ev.result = '書庫を後にした。';
   }
 
   ev.resolved = true;
@@ -338,23 +343,12 @@ function resolveEvent(action) {
 }
 
 function prepareMap() {
+  state.mapText = mapTexts[Math.floor(Math.random() * mapTexts.length)];
   state.nextNode = Math.random() < 0.72 ? 'combat' : 'event';
-  state.eliteOffer = state.floor === state.maxFloor || state.nextNode !== 'combat'
-    ? null
-    : (Math.random() < 0.22 ? elitePool[Math.floor(Math.random() * elitePool.length)] : null);
+  state.eliteOffer = state.floor === state.maxFloor || state.nextNode !== 'combat' ? null : (Math.random() < 0.22 ? elitePool[Math.floor(Math.random() * elitePool.length)] : null);
 }
 
-function nextFloor() {
-  state.floor += 1;
-  if (state.floor > state.maxFloor) { state.mode = 'win'; render(); return; }
-  state.mode = 'map';
-  state.eventState = null;
-  state.enemies = [];
-  state.postCombatLocked = false;
-  prepareMap();
-  render();
-}
-
+function nextFloor() { state.floor += 1; if (state.floor > state.maxFloor) { state.mode = 'win'; render(); return; } state.mode = 'map'; state.eventState = null; state.enemies = []; state.postCombatLocked = false; prepareMap(); render(); }
 function saveGame() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); addLog('セーブした。'); }
 function loadGame() { const raw = localStorage.getItem(STORAGE_KEY); if (!raw) return; const loaded = JSON.parse(raw); loaded.player.relics = (loaded.player.relics || []).map((r) => relicPool.find((x) => x.id === r.id)).filter(Boolean); state = { ...defaultState(), ...loaded, player: { ...defaultState().player, ...loaded.player } }; addLog('ロードした。'); render(); }
 function restart() { state = defaultState(); prepareMap(); addLog('ニューゲーム開始。'); render(); }
@@ -362,93 +356,30 @@ function toggleDeck() { state.showDeck = !state.showDeck; render(); }
 function toggleRelics() { state.showRelics = !state.showRelics; render(); }
 function setTarget(i) { state.selectedTarget = i; render(); }
 
-function renderDeckList() {
-  if (!state.showDeck) return '';
-  const counts = {};
-  state.player.deck.forEach((id) => { counts[id] = (counts[id] || 0) + 1; });
-  return `<div class="deck-view">${Object.entries(counts).map(([id, n]) => `<div class="small ${getCardRarityClass(id)}">・${cardLabel(id)} x${n} - ${cardEffectText(id)}</div>`).join('')}</div>`;
-}
-
-function renderRelicList() {
-  return state.showRelics
-    ? `<div class="deck-view">${state.player.relics.map((r) => `<div class="small ${getRelicRarityClass(r)}">・${r.name}: ${r.text}</div>`).join('') || '<div class="small">なし</div>'}</div>`
-    : '';
-}
-
-function statusLine(s, w, v, d) {
-  const bits = [];
-  if (s > 0) bits.push(`筋力:${s}`);
-  if (w > 0) bits.push(`弱体:${w}`);
-  if (v > 0) bits.push(`脆弱:${v}`);
-  if (d > 0) bits.push(`脱力:${d}`);
-  return bits.length ? `<p>${bits.join(' / ')}</p>` : '';
-}
-
+function renderDeckList() { if (!state.showDeck) return ''; const counts = {}; state.player.deck.forEach((id) => { counts[id] = (counts[id] || 0) + 1; }); return `<div class="deck-view">${Object.entries(counts).map(([id, n]) => `<div class="small ${getCardRarityClass(id)}">・${cardLabel(id)} x${n} - ${cardEffectText(id)}</div>`).join('')}</div>`; }
+function renderRelicList() { return state.showRelics ? `<div class="deck-view">${state.player.relics.map((r) => `<div class="small ${getRelicRarityClass(r)}">・${r.name}: ${r.text}</div>`).join('') || '<div class="small">なし</div>'}</div>` : ''; }
+function statusLine(s, w, v, d) { const b = []; if (s > 0) b.push(`筋力:${s}`); if (w > 0) b.push(`弱体:${w}`); if (v > 0) b.push(`脆弱:${v}`); if (d > 0) b.push(`脱力:${d}`); return b.length ? `<p>${b.join(' / ')}</p>` : ''; }
 function hpBar(cur, max) { return `<div class="hp-bar"><span style="width:${Math.round((cur / max) * 100)}%"></span></div>`; }
 
-function renderTopControls() {
-  const h1 = document.querySelector('header h1');
-  if (h1) h1.innerHTML = `Mini Spire <span class="version">Ver${VERSION}</span>`;
-  el.topControls.innerHTML = '<button id="saveBtn">セーブ</button><button id="loadBtn">ロード</button><button id="restartBtn">ニューゲーム</button>';
-  document.getElementById('saveBtn').addEventListener('click', saveGame);
-  document.getElementById('loadBtn').addEventListener('click', loadGame);
-  document.getElementById('restartBtn').addEventListener('click', restart);
-}
+function renderTopControls() { const h1 = document.querySelector('header h1'); if (h1) h1.innerHTML = `Mini Spire <span class="version">Ver${VERSION}</span>`; el.topControls.innerHTML = '<button id="saveBtn">セーブ</button><button id="loadBtn">ロード</button><button id="restartBtn">ニューゲーム</button>'; document.getElementById('saveBtn').addEventListener('click', saveGame); document.getElementById('loadBtn').addEventListener('click', loadGame); document.getElementById('restartBtn').addEventListener('click', restart); }
 
 function renderHUD() {
-  const canUseBomb = state.mode === 'combat' && state.items.bombPotion > 0;
-  const canUseHeal = state.items.healPotion > 0;
-  const slots = [
-    { key: 'healPotion', label: `回復ポーション(${state.items.healPotion})`, enabled: canUseHeal },
-    { key: 'bombPotion', label: `爆発ポーション(${state.items.bombPotion})`, enabled: canUseBomb },
-    { key: null, label: '空スロット', enabled: false },
-    { key: null, label: '空スロット', enabled: false },
-    { key: null, label: '空スロット', enabled: false },
-  ];
-
-  el.hud.innerHTML = `
-    <div class="grid hud-grid-5">
-      <div class="stat">HP: ${state.player.hp} / ${state.player.maxHp}</div>
-      <div class="stat">階層: ${state.floor} / ${state.maxFloor}</div>
-      <div class="stat">所持金: ${state.gold}G</div>
-      <button class="stat deck-btn" id="deckBtn">デッキ: ${state.player.deck.length}枚</button>
-      <button class="stat deck-btn" id="relicBtn">所持レリック一覧</button>
-    </div>
-    <div class="row" style="margin-top:0.5rem;">${slots.map((s, i) => `<button data-slot="${i}" class="${s.enabled ? '' : 'is-disabled'}" ${s.enabled ? '' : 'disabled'}>${s.label}</button>`).join('')}</div>
-    ${renderDeckList()}
-    ${renderRelicList()}
-  `;
-
+  const slots = Array.from({ length: 5 }, (_, i) => state.items[i] || null);
+  el.hud.innerHTML = `<div class="grid hud-grid-5"><div class="stat">HP: ${state.player.hp} / ${state.player.maxHp}</div><div class="stat">階層: ${state.floor} / ${state.maxFloor}</div><div class="stat">所持金: ${state.gold}G</div><button class="stat deck-btn" id="deckBtn">デッキ: ${state.player.deck.length}枚</button><button class="stat deck-btn" id="relicBtn">所持レリック一覧</button></div><div class="row" style="margin-top:0.5rem;">${slots.map((id, idx) => { if (!id) return '<button class="is-disabled" disabled>空スロット</button>'; const p = potionDefs[id]; const en = !p.combatOnly || state.mode === 'combat'; return `<button data-item-index="${idx}" class="${en ? '' : 'is-disabled'}" ${en ? '' : 'disabled'} title="${p.desc}">${p.name}</button>`; }).join('')}</div>${renderDeckList()}${renderRelicList()}`;
   document.getElementById('deckBtn').addEventListener('click', toggleDeck);
   document.getElementById('relicBtn').addEventListener('click', toggleRelics);
-  el.hud.querySelectorAll('[data-slot]').forEach((btn) => {
-    const i = Number(btn.dataset.slot);
-    if (i === 0 && canUseHeal) btn.addEventListener('click', () => useItem('healPotion'));
-    if (i === 1 && canUseBomb) btn.addEventListener('click', () => useItem('bombPotion'));
-  });
+  el.hud.querySelectorAll('[data-item-index]').forEach((btn) => btn.addEventListener('click', () => useItemAt(Number(btn.dataset.itemIndex))));
 }
 
 function renderState() {
   if (state.mode === 'combat') {
-    const enemiesHtml = state.enemies.map((e, i) => `<button title="危険度:${e.danger || (e.isElite ? 9 : 10)} / 報酬:${e.gold || 0}G" class="panel enemy-panel enemy-card ${currentTarget() === e ? 'selected-target' : ''} ${e.hp <= 0 ? 'is-disabled' : ''}" data-target="${i}" ${e.hp <= 0 ? 'disabled' : ''}><h3>${e.name}${e.isElite ? '【エリート】' : e.isBoss ? '【ボス】' : ''}</h3><p>HP ${Math.max(0, e.hp)} / ${e.maxHp}</p>${hpBar(Math.max(0, e.hp), e.maxHp)}<p>ブロック: <span class="block">${e.block}</span></p>${statusLine(e.strength || 0, e.weak || 0, e.vuln || 0, e.drain || 0)}<p>行動予告: <strong>${e.hp > 0 ? intentText(e) : '撃破済み'}</strong></p></button>`).join('');
+    const enemiesHtml = state.enemies.map((e, i) => `<button data-tip="危険度:${e.danger || (e.isElite ? 9 : 10)} / 報酬:${e.gold || 0}G" class="panel enemy-panel enemy-card ${currentTarget() === e ? 'selected-target' : ''} ${e.hp <= 0 ? 'is-disabled' : ''}" data-target="${i}" ${e.hp <= 0 ? 'disabled' : ''}><h3>${e.name}${e.isElite ? '【エリート】' : e.isBoss ? '【ボス】' : ''}</h3><p>HP ${Math.max(0, e.hp)} / ${e.maxHp}</p>${hpBar(Math.max(0, e.hp), e.maxHp)}<p>ブロック: <span class="block">${e.block}</span></p>${statusLine(e.strength || 0, e.weak || 0, e.vuln || 0, e.drain || 0)}<p>行動予告: <strong>${e.hp > 0 ? intentText(e) : '撃破済み'}</strong></p></button>`).join('');
     el.state.innerHTML = `<div class="status-grid"><div class="panel player-panel"><h3>あなた</h3><p>HP ${state.player.hp} / ${state.player.maxHp}</p>${hpBar(state.player.hp, state.player.maxHp)}<p>エナジー: ${state.player.energy} / ブロック: <span class="block">${state.player.block}</span></p>${statusLine(playerStrength(), state.player.weak, state.player.vuln, state.player.drain)}</div></div><div class="enemy-grid">${enemiesHtml}</div>`;
     document.querySelectorAll('[data-target]').forEach((b) => b.addEventListener('click', () => setTarget(Number(b.dataset.target))));
     return;
   }
-
-  if (state.mode === 'event') {
-    const ev = state.eventState;
-    if (!ev) { el.state.innerHTML = '<h2>イベント</h2>'; return; }
-    el.state.innerHTML = `<h2>${ev.title}</h2><p>${ev.text}</p>${ev.resolved ? `<p>${ev.result}</p>` : ''}`;
-    return;
-  }
-
-  if (state.mode === 'map') {
-    if (state.floor === state.maxFloor) { el.state.innerHTML = '<h2>最終階層</h2><p>重い殺気が漂う。ボスが待っている…。</p>'; return; }
-    el.state.innerHTML = `<h2>次の階層へ進む</h2><p>${state.nextNode === 'event' ? '不思議な気配が漂っている。' : (state.eliteOffer ? '強い気配を感じる。' : '次の敵を探して進む。')}</p>`;
-    return;
-  }
-
+  if (state.mode === 'event') { const ev = state.eventState; el.state.innerHTML = ev ? `<h2>${ev.title}</h2><p>${ev.text}</p>${ev.resolved ? `<p>${ev.result}</p>` : ''}` : '<h2>イベント</h2>'; return; }
+  if (state.mode === 'map') { if (state.floor === state.maxFloor) { el.state.innerHTML = '<h2>最終階層</h2><p>重い殺気が漂う。ボスが待っている…。</p>'; return; } el.state.innerHTML = `<h2>次の階層へ進む</h2><p>${state.nextNode === 'event' ? '不思議な気配が漂っている。' : (state.eliteOffer ? '強い気配を感じる。' : state.mapText)}</p>`; return; }
   if (state.mode === 'reward') { el.state.innerHTML = '<h2>戦利品</h2><p>報酬を選択。</p>'; return; }
   if (state.mode === 'postCombat') { el.state.innerHTML = `<h2>戦闘後イベント</h2><p>${state.postCombatLocked ? '次の階層へ進もう。' : '焚火かショップを1つ選べる。'}</p>`; return; }
   if (state.mode === 'shop') { el.state.innerHTML = '<h2>ショップ</h2>'; return; }
@@ -468,47 +399,26 @@ function renderActions() {
   if (state.mode === 'event') {
     const ev = state.eventState;
     if (!ev) { el.actions.innerHTML = ''; return; }
-    if (ev.resolved) {
-      el.actions.innerHTML = '<button id="nextFloor">次の階層へ</button>';
-      document.getElementById('nextFloor').addEventListener('click', nextFloor);
-      return;
-    }
-    if (ev.key === 'chest') {
-      el.actions.innerHTML = '<button id="evOpen">開ける</button><button id="evLeave">開けない</button>';
-      document.getElementById('evOpen').addEventListener('click', () => resolveEvent('open'));
-      document.getElementById('evLeave').addEventListener('click', () => resolveEvent('leave'));
-      return;
-    }
-    if (ev.key === 'fountain') {
-      el.actions.innerHTML = '<button id="evHeal">HPを20%回復</button><button id="evMax">最大HP10%アップ</button>';
-      document.getElementById('evHeal').addEventListener('click', () => resolveEvent('heal'));
-      document.getElementById('evMax').addEventListener('click', () => resolveEvent('max'));
-      return;
-    }
-    el.actions.innerHTML = '<button id="evOffer">血を捧げる</button><button id="evIgnore">立ち去る</button>';
-    document.getElementById('evOffer').addEventListener('click', () => resolveEvent('offer'));
-    document.getElementById('evIgnore').addEventListener('click', () => resolveEvent('ignore'));
-    return;
+    if (ev.resolved) { el.actions.innerHTML = '<button id="nextFloor">次の階層へ</button>'; document.getElementById('nextFloor').addEventListener('click', nextFloor); return; }
+    if (ev.key === 'chest') { el.actions.innerHTML = '<button id="evOpen">開ける</button><button id="evLeave">開けない</button>'; document.getElementById('evOpen').addEventListener('click', () => resolveEvent('open')); document.getElementById('evLeave').addEventListener('click', () => resolveEvent('leave')); return; }
+    if (ev.key === 'fountain') { el.actions.innerHTML = '<button id="evHeal">HPを20%回復</button><button id="evMax">最大HP10%アップ</button>'; document.getElementById('evHeal').addEventListener('click', () => resolveEvent('heal')); document.getElementById('evMax').addEventListener('click', () => resolveEvent('max')); return; }
+    if (ev.key === 'altar') { el.actions.innerHTML = '<button id="evOffer">血を捧げる</button><button id="evIgnore">立ち去る</button>'; document.getElementById('evOffer').addEventListener('click', () => resolveEvent('offer')); document.getElementById('evIgnore').addEventListener('click', () => resolveEvent('ignore')); return; }
+    if (ev.key === 'merchant') { el.actions.innerHTML = '<button id="evTake">拾う</button><button id="evPass">無視する</button>'; document.getElementById('evTake').addEventListener('click', () => resolveEvent('take')); document.getElementById('evPass').addEventListener('click', () => resolveEvent('pass')); return; }
+    if (ev.key === 'idol') { el.actions.innerHTML = '<button id="evTouch">触れる</button><button id="evBack">引き返す</button>'; document.getElementById('evTouch').addEventListener('click', () => resolveEvent('touch')); document.getElementById('evBack').addEventListener('click', () => resolveEvent('back')); return; }
+    el.actions.innerHTML = '<button id="evStudy">読む</button><button id="evLeaveLib">立ち去る</button>'; document.getElementById('evStudy').addEventListener('click', () => resolveEvent('study')); document.getElementById('evLeaveLib').addEventListener('click', () => resolveEvent('leave')); return;
   }
 
   if (state.mode === 'map') {
     if (state.floor === state.maxFloor) { el.actions.innerHTML = '<button id="startBoss">ボス戦に挑む</button>'; document.getElementById('startBoss').addEventListener('click', () => startCombat(bossPool[0])); return; }
     if (state.nextNode === 'event') { el.actions.innerHTML = '<button id="goEvent">イベントへ進む</button>'; document.getElementById('goEvent').addEventListener('click', openEvent); return; }
-    if (state.eliteOffer) {
-      el.actions.innerHTML = '<div class="row"><button id="startElite">エリート戦に挑む</button><button id="startNormal">通常戦闘にする</button></div>';
-      document.getElementById('startElite').addEventListener('click', () => startCombat(state.eliteOffer));
-      document.getElementById('startNormal').addEventListener('click', () => startCombat());
-      return;
-    }
-    el.actions.innerHTML = '<button id="startFight">戦闘開始</button>';
-    document.getElementById('startFight').addEventListener('click', () => startCombat());
-    return;
+    if (state.eliteOffer) { el.actions.innerHTML = '<div class="row"><button id="startElite">エリート戦に挑む</button><button id="startNormal">通常戦闘にする</button></div>'; document.getElementById('startElite').addEventListener('click', () => startCombat(state.eliteOffer)); document.getElementById('startNormal').addEventListener('click', () => startCombat()); return; }
+    el.actions.innerHTML = '<button id="startFight">戦闘開始</button>'; document.getElementById('startFight').addEventListener('click', () => startCombat()); return;
   }
 
   if (state.mode === 'reward') {
     const relic = state.relicChoices[0];
     const canProceed = state.rewardTaken && (state.relicTaken || !relic);
-    el.actions.innerHTML = `<div class="row">${state.rewardChoices.map((id) => `<button data-reward="${id}" class="${getCardRarityClass(id)} ${state.rewardTaken ? 'is-disabled' : ''}" ${state.rewardTaken ? 'disabled' : ''}>${cardLabel(id)}<br><span class="small">${cardEffectText(id)}</span></button>`).join('')}</div><div class="row" style="margin-top:0.5rem;"><button id="skipReward" ${state.rewardTaken ? 'disabled class="is-disabled"' : ''}>カードをスキップ</button>${relic ? `<button id="takeRelic" class="${getRelicRarityClass(relic)}" ${state.relicTaken ? 'disabled' : ''}>レリック獲得: ${relic.name}</button><button id="skipRelic" ${state.relicTaken ? 'disabled class="is-disabled"' : ''}>レリックを見送る</button>` : ''}</div><div class="row" style="margin-top:0.5rem;"><button id="finishReward" ${canProceed ? '' : 'disabled class="is-disabled"'}>報酬を受け取って進む</button></div>`;
+    el.actions.innerHTML = `<div class="row">${state.rewardChoices.map((id) => `<button data-reward="${id}" class="${getCardRarityClass(id)} ${state.rewardTaken ? 'is-disabled' : ''}" ${state.rewardTaken ? 'disabled' : ''}>${cardLabel(id)}<br><span class="small">${cardEffectText(id)}</span></button>`).join('')}</div><div class="row" style="margin-top:0.5rem;"><button id="skipReward" ${state.rewardTaken ? 'disabled class="is-disabled"' : ''}>カードをスキップ</button>${relic ? `<button id="takeRelic" data-tip="${relic.text}" class="${getRelicRarityClass(relic)}" ${state.relicTaken ? 'disabled' : ''}>レリック獲得: ${relic.name}</button><button id="skipRelic" ${state.relicTaken ? 'disabled class="is-disabled"' : ''}>レリックを見送る</button>` : ''}</div><div class="row" style="margin-top:0.5rem;"><button id="finishReward" ${canProceed ? '' : 'disabled class="is-disabled"'}>報酬を受け取って進む</button></div>`;
     el.actions.querySelectorAll('[data-reward]').forEach((b) => b.addEventListener('click', () => takeReward(b.dataset.reward)));
     document.getElementById('skipReward').addEventListener('click', skipReward);
     if (relic) {
@@ -519,19 +429,12 @@ function renderActions() {
     return;
   }
 
-  if (state.mode === 'postCombat') {
-    el.actions.innerHTML = `<div class="row"><button id="toCamp" ${state.postCombatLocked ? 'disabled class="is-disabled"' : ''}>焚き火へ</button><button id="toShop" ${state.postCombatLocked ? 'disabled class="is-disabled"' : ''}>ショップへ</button><button id="nextFloor">次の階層へ</button></div>`;
-    if (!state.postCombatLocked) {
-      document.getElementById('toCamp').addEventListener('click', enterCamp);
-      document.getElementById('toShop').addEventListener('click', enterShop);
-    }
-    document.getElementById('nextFloor').addEventListener('click', nextFloor);
-    return;
-  }
+  if (state.mode === 'postCombat') { el.actions.innerHTML = `<div class="row"><button id="toCamp" ${state.postCombatLocked ? 'disabled class="is-disabled"' : ''}>焚き火へ</button><button id="toShop" ${state.postCombatLocked ? 'disabled class="is-disabled"' : ''}>ショップへ</button><button id="nextFloor">次の階層へ</button></div>`; if (!state.postCombatLocked) { document.getElementById('toCamp').addEventListener('click', enterCamp); document.getElementById('toShop').addEventListener('click', enterShop); } document.getElementById('nextFloor').addEventListener('click', nextFloor); return; }
 
   if (state.mode === 'shop') {
-    el.actions.innerHTML = `<div class="row">${state.shopChoices.map((c) => `<button data-buy="${c.id}" data-price="${c.price}" class="${getCardRarityClass(c.id)}">${cardLabel(c.id)}<br><span class="small">${cardEffectText(c.id)} / ${c.price}G</span></button>`).join('')}</div><div class="row" style="margin-top:0.6rem;"><button id="leaveShop">ショップを出る</button></div>`;
+    el.actions.innerHTML = `<p class="small">カード購入</p><div class="row">${state.shopChoices.map((c) => `<button data-buy="${c.id}" data-price="${c.price}" class="${getCardRarityClass(c.id)}">${cardLabel(c.id)}<br><span class="small">${cardEffectText(c.id)} / ${c.price}G</span></button>`).join('')}</div><p class="small">ポーション購入</p><div class="row">${state.shopPotionChoices.map((p) => `<button data-buy-pot="${p.id}" data-price="${p.price}" ${state.items.length >= 5 ? 'disabled class="is-disabled"' : ''}>${potionDefs[p.id].name}<br><span class="small">${potionDefs[p.id].desc} / ${p.price}G</span></button>`).join('')}</div><div class="row" style="margin-top:0.6rem;"><button id="leaveShop">ショップを出る</button></div>`;
     el.actions.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => buyCard(b.dataset.buy, Number(b.dataset.price))));
+    el.actions.querySelectorAll('[data-buy-pot]').forEach((b) => b.addEventListener('click', () => buyPotion(b.dataset.buyPot, Number(b.dataset.price))));
     document.getElementById('leaveShop').addEventListener('click', leaveShop);
     return;
   }
@@ -549,16 +452,6 @@ function renderActions() {
 }
 
 function renderLog() { el.log.innerHTML = state.log.map((x) => `<div class="log-entry">${x}</div>`).join(''); }
-
-function renderTopControls() {
-  const h1 = document.querySelector('header h1');
-  if (h1) h1.innerHTML = `Mini Spire <span class="version">Ver${VERSION}</span>`;
-  el.topControls.innerHTML = '<button id="saveBtn">セーブ</button><button id="loadBtn">ロード</button><button id="restartBtn">ニューゲーム</button>';
-  document.getElementById('saveBtn').addEventListener('click', saveGame);
-  document.getElementById('loadBtn').addEventListener('click', loadGame);
-  document.getElementById('restartBtn').addEventListener('click', restart);
-}
-
 function render() { renderTopControls(); renderHUD(); renderState(); renderActions(); renderLog(); }
 
 prepareMap();
