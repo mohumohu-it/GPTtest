@@ -87,3 +87,22 @@ body.screen-hidden .top-controls {
 body.screen-hidden .top-controls button:not(#screenBtn) {
   visibility: hidden;
 }
+
+
+.hp-caution { color: #ffd35a; font-weight: 700; }
+.hp-critical { color: #ff7a7a; font-weight: 700; }
+
+.damage-flash {
+  animation: damageFlash 0.28s ease;
+}
+@keyframes damageFlash {
+  0% { box-shadow: 0 0 0 rgba(255, 80, 80, 0); background: rgba(255, 60, 60, 0.08); }
+  40% { box-shadow: 0 0 18px rgba(255, 80, 80, 0.85); background: rgba(255, 80, 80, 0.24); }
+  100% { box-shadow: 0 0 0 rgba(255, 80, 80, 0); background: rgba(0, 0, 0, 0.2); }
+}
+
+.log-glow-gold { color: #ffe680; text-shadow: 0 0 8px rgba(255, 220, 80, 0.85), 0 0 14px rgba(255, 220, 80, 0.55); }
+.log-glow-common { color: #e2e7ef; text-shadow: 0 0 6px rgba(220, 230, 240, 0.6); }
+.log-glow-uncommon { color: #7fcbff; text-shadow: 0 0 8px rgba(80, 190, 255, 0.85), 0 0 14px rgba(80, 190, 255, 0.45); }
+.log-glow-rare { color: #ffe082; text-shadow: 0 0 8px rgba(255, 210, 80, 0.85), 0 0 14px rgba(255, 210, 80, 0.45); }
+.log-glow-legendary { color: #ff9a9a; text-shadow: 0 0 8px rgba(255, 80, 80, 0.9), 0 0 15px rgba(255, 80, 80, 0.5); }
