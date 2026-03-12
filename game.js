@@ -512,11 +512,16 @@ function renderActions() {
     return;
   }
 
-  el.actions.innerHTML = '<button id="restart">最初からプレイ</button>';
-  document.getElementById('restart').addEventListener('click', restart);
+  el.actions.innerHTML = '<button id="restartAction">最初からプレイ</button>';
+  document.getElementById('restartAction').addEventListener('click', restart);
 }
 
 function renderLog() { el.log.innerHTML = state.log.map((x) => `<div class="log-entry ${x.cls || ''}">${x.text ?? x}</div>`).join(''); }
+el.actions.addEventListener('click', (e) => {
+  const t = e.target;
+  if (t && t.id === 'restartAction') restart();
+});
+
 function render() { renderTopControls(); renderHUD(); renderState(); renderActions(); renderLog(); }
 
 prepareMap();
