@@ -956,5 +956,5 @@ function render() { renderTopControls(); renderHUD(); renderState(); renderActio
 
 prepareMap();
 startBlessing();
-addLog('ゲーム開始。戦闘を始めましょう。');
+addLog('探索開始。');
 render();
